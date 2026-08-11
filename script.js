@@ -2,8 +2,11 @@
     // =========================================
     // DOSTĘPNE ROLE
     // =========================================
+    // POPRAWKA: role dostępne zależą teraz od wybranego trybu gry
+    // (podstawowy / zaawansowany). "roles" zostało zastąpione przez
+    // getActiveRoles() - patrz sekcja TRYB GRY poniżej.
 
-    const roles = [
+    const BASIC_ROLES = [
         "Szaman",
         "Mafia",
         "Błazen",
@@ -14,6 +17,21 @@
         "Informator"
     ];
 
+    // NOWOŚĆ: role dostępne DODATKOWO w trybie zaawansowanym.
+    // UWAGA: na razie to tylko role "na tabeli" / do wyboru w
+    // formularzu - Obserwator i Łowca nie mają jeszcze
+    // zaimplementowanej akcji nocnej ani specjalnych zasad. Dopóki
+    // ich mechanika nie powstanie, zachowują się jak zwykli neutralni
+    // gracze (nie liczą się do GOOD_ROLES ani EVIL_ROLES przy
+    // warunkach zwycięstwa - podobnie jak Błazen).
+
+    const ADVANCED_ONLY_ROLES = [
+        "Obserwator",
+        "Guślarz",
+        "Wieszcz",
+        "Fałszerz"
+    ];
+
     // Role "dobre" (Miasto) - używane przy sprawdzeniu Szamana
     // oraz przy ustalaniu warunków zwycięstwa.
     const GOOD_ROLES = [
@@ -21,19 +39,53 @@
         "Medyk",
         "Rozjemca",
         "Wieśniak",
-        "Alkoholik"
+        "Alkoholik",
+        "Obserwator",
+        "Guślarz",
+        "Wieszcz"
     ];
 
-    // NOWOŚĆ: Role "złe" / drużyna zabijająca - Mafia oraz Informator
-    // (który przejmuje zabijanie po śmierci głównej Mafii). Używane
-    // przy ustalaniu warunków zwycięstwa - Miasto nie może wygrać
-    // dopóki którakolwiek z tych ról jeszcze żyje. Błazen jest
-    // rolą neutralną i ma własny, osobny warunek zwycięstwa
-    // (zostać wygłosowanym), więc celowo nie jest tu uwzględniony.
+    // Role "złe" / drużyna zabijająca.
     const EVIL_ROLES = [
         "Mafia",
-        "Informator"
+        "Informator",
+        "Fałszerz"
     ];
+
+
+    // =========================================
+    // TRYB GRY (podstawowy / zaawansowany)
+    // =========================================
+    // NOWOŚĆ: przełącznik w menu głównym decyduje, jakie role są
+    // dostępne przy przypisywaniu ról graczom.
+
+    let gameMode = "basic";
+
+    function setGameMode(mode) {
+
+        gameMode = mode;
+
+        document.getElementById(
+            "modeBasicBtn"
+        ).classList.toggle("active", mode === "basic");
+
+        document.getElementById(
+            "modeAdvancedBtn"
+        ).classList.toggle("active", mode === "advanced");
+
+    }
+
+    function getActiveRoles() {
+
+        if (gameMode === "advanced") {
+
+            return BASIC_ROLES.concat(ADVANCED_ONLY_ROLES);
+
+        }
+
+        return BASIC_ROLES;
+
+    }
 
 
     // =========================================
@@ -45,6 +97,10 @@
     // =========================================
     // STAN GRY
     // =========================================
+    // POPRAWKA: usunięto zduplikowany klucz "deathReason"
+    // (występował dwukrotnie w tym samym obiekcie i nie był
+    // nigdzie faktycznie używany na poziomie gry - każdy gracz
+    // ma własne pole deathReason).
 
     let game = {
 
@@ -59,6 +115,10 @@
 
         previousAlcoholicTarget: null,
 
+        // NOWOŚĆ: analogicznie do Alkoholika - Fałszerz nie może
+        // wrobić tej samej osoby dwa razy pod rząd.
+        previousFalszerzTarget: null,
+
         currentNight: {
 
             alcoholic: null,
@@ -66,15 +126,33 @@
 
             medic: null,
 
+            falszerz: null, // id wrobionej osoby (odwrócona frakcja tej nocy)
+
             shaman: null,
+
+            wieszcz: null,    // [id1, id2] - para sprawdzana przez Wieszcza
 
             mafia: null,
 
             informator: null,
 
+            obserwator: null, // id celu obserwowanego przez Obserwatora
+
+            // NOWOŚĆ: mapa odwiedzin tej nocy - klucz: id odwiedzonego,
+            // wartość: tablica id odwiedzających. Wypełniana przez każdą
+            // rolę, która "odwiedza" kogoś w nocy (Medyk, Szaman, Mafia,
+            // Informator, Wieszcz, Fałszerz). Używana przez Obserwatora.
+            visits: {},
+
             log: []
 
         },
+
+        // NOWOŚĆ: historia odwiedzin Guślarza przez całą rozgrywkę.
+        // Klucz: id Guślarza (zawsze jeden), wartość: tablica obiektów
+        // { night, visitorId, visitorName, visitorRole }.
+        // Zapisywana niezależnie od nocy, odczytywana po śmierci Guślarza.
+        guslarVisits: [],
 
         history: []
 
@@ -89,6 +167,52 @@
     function logNightEvent(message) {
 
         game.currentNight.log.push(message);
+
+    }
+
+    // =========================================
+    // SYSTEM ODWIEDZIN
+    // =========================================
+    // NOWOŚĆ: każda rola "odwiedzająca" kogoś w nocy (Medyk, Szaman,
+    // Mafia, Informator, Wieszcz) rejestruje odwiedziny przez tę
+    // funkcję. Obserwator odczytuje zebrane odwiedziny na końcu nocy.
+    // Odwiedziny Guślarza są dodatkowo zapisywane do trwałego rejestru
+    // game.guslarVisits (nie kasowanego między nocami).
+
+    function registerVisit(visitorId, targetId) {
+
+        const visits = game.currentNight.visits;
+
+        if (!visits[targetId]) {
+            visits[targetId] = [];
+        }
+
+        if (!visits[targetId].includes(visitorId)) {
+            visits[targetId].push(visitorId);
+        }
+
+        // Jeśli odwiedzony to Guślarz — dopisz do trwałego rejestru
+
+        const guslar =
+            players.find(p => p.role === "Guślarz");
+
+        if (guslar && targetId === guslar.id) {
+
+            const visitor =
+                players.find(p => p.id === visitorId);
+
+            if (visitor) {
+
+                game.guslarVisits.push({
+                    night: game.night,
+                    visitorId: visitor.id,
+                    visitorName: visitor.name,
+                    visitorRole: visitor.role
+                });
+
+            }
+
+        }
 
     }
 
@@ -289,6 +413,42 @@
     function isGoodRole(role) {
 
         return GOOD_ROLES.includes(role);
+    }
+
+    // =========================================
+    // FRAKCJA - Z UWZGLĘDNIENIEM WROBIENIA
+    // =========================================
+    // NOWOŚĆ: Fałszerz odwraca postrzeganą frakcję wskazanej osoby
+    // TYLKO na tę noc. Te funkcje zwracają "prawdziwą" oraz
+    // "efektywną" (po ewentualnym odwróceniu) kategorię frakcji -
+    // używane przez Szamana i Wieszcza zamiast bezpośredniego
+    // sprawdzania roli, żeby wrobienie realnie wpływało na ich wyniki.
+
+    function getFactionCategory(role) {
+
+        if (isGoodRole(role)) return "good";
+        if (EVIL_ROLES.includes(role)) return "evil";
+        return "neutral";
+
+    }
+
+    function getEffectiveFactionCategory(player) {
+
+        const category = getFactionCategory(player.role);
+
+        const isFramed =
+            game.currentNight.falszerz === player.id;
+
+        if (!isFramed) return category;
+
+        // Odwracamy dobra<->zła. Neutralne role (np. Błazen) nie mają
+        // jednoznacznego "przeciwieństwa", więc zostawiamy bez zmian.
+
+        if (category === "good") return "evil";
+        if (category === "evil") return "good";
+
+        return category;
+
     }
 
 
@@ -685,6 +845,15 @@
 
     function newGame() {
 
+        // POPRAWKA: limit graczy dopasowany do liczby ról w
+        // aktualnie wybranym trybie (8 w podstawowym, 10 w
+        // zaawansowanym).
+
+        document.getElementById(
+            "playerCount"
+        ).max = getActiveRoles().length;
+
+
         showScreen("newGameScreen");
 
     }
@@ -699,10 +868,17 @@
         const playerCount =
             parseInt(document.getElementById("playerCount").value);
 
+        const maxPlayers =
+            getActiveRoles().length;
 
-        if (playerCount < 4 || playerCount > 8) {
 
-            alert("Liczba graczy musi wynosić od 4 do 8.");
+        if (playerCount < 4 || playerCount > maxPlayers) {
+
+            alert(
+                "Liczba graczy musi wynosić od 4 do " +
+                maxPlayers +
+                "."
+            );
 
             return;
         }
@@ -729,6 +905,10 @@
                 revealed: false,
 
                 peacemakerUsed: false,
+
+                // NOWOŚĆ: Guślarz przeżywa pierwszy atak Mafii -
+                // ta flaga zaznacza, że odporność została już zużyta.
+                guslarAttacked: false,
 
                 deathReason: null,
 
@@ -821,7 +1001,9 @@
 
             // Dodajemy wszystkie role
 
-            roles.forEach(role => {
+            // POPRAWKA: lista ról zależy teraz od wybranego trybu gry
+
+            getActiveRoles().forEach(role => {
 
                 const option =
                     document.createElement("option");
@@ -931,6 +1113,26 @@
         game.phase = "day";
         game.history = [];
         game.previousAlcoholicTarget = null;
+        game.previousFalszerzTarget = null;
+
+        // POPRAWKA: bez tego stara historia odwiedzin Guślarza
+        // (z poprzedniej, zupełnie innej rozgrywki) mogłaby zostać
+        // pokazana nowemu Guślarzowi po ataku.
+        game.guslarVisits = [];
+
+
+        // POPRAWKA: ukrywamy ekran końca poprzedniej rozgrywki -
+        // wcześniej był resetowany tylko w newGameWithSamePlayers(),
+        // więc jeśli ktoś wracał do menu głównego (goBack()) po
+        // wygranej i zaczynał zupełnie nową grę przez startGame(),
+        // stary komunikat "Koniec gry" zostawał widoczny pod
+        // panelem dnia (bo showScreen() przełącza tylko główne
+        // ekrany, a gameOverScreen jest elementem WEWNĄTRZ gameScreen
+        // ze swoim własnym, niezależnym style.display).
+
+        document.getElementById(
+            "gameOverScreen"
+        ).style.display = "none";
 
 
         // Wyświetlamy informacje
@@ -1143,9 +1345,13 @@
             alcoholic: null,
             alcoholicBlocked: null,
             medic: null,
+            falszerz: null,
             shaman: null,
+            wieszcz: null,
             mafia: null,
             informator: null,
+            obserwator: null,
+            visits: {},
             log: []
 
         };
@@ -1168,9 +1374,12 @@
         document.getElementById("nightStart").style.display = "block";
         document.getElementById("alcoholicAction").style.display = "none";
         document.getElementById("medicAction").style.display = "none";
+        document.getElementById("falszerzAction").style.display = "none";
         document.getElementById("shamanAction").style.display = "none";
+        document.getElementById("wieszczAction").style.display = "none";
         document.getElementById("informatorAction").style.display = "none";
         document.getElementById("mafiaAction").style.display = "none";
+        document.getElementById("obserwatorAction").style.display = "none";
 
 
         // Pokazujemy panel nocy (i zostawiamy go widocznym przez
@@ -1456,7 +1665,7 @@
                 "🩺 Medyk nie żyje / nie występuje - noc bez akcji Medyka."
             );
 
-            startShamanAction();
+            startFalszerzAction();
 
             return;
         }
@@ -1506,6 +1715,8 @@
             game.currentNight.medic =
                 target.id;
 
+            registerVisit(medic.id, target.id);
+
             logNightEvent(
                 "🩺 Medyk postanowił uleczyć: " + target.name
             );
@@ -1513,7 +1724,166 @@
         }
 
 
-        // Następna rola: Szaman
+        // Następna rola: Fałszerz
+
+        startFalszerzAction();
+
+    }
+
+    // =========================================
+    // FAŁSZERZ - ROZPOCZĘCIE AKCJI
+    // =========================================
+    // NOWOŚĆ: rola Mafii. Działa PO Medyku, PRZED Szamanem. Dostępna
+    // tylko w trybie zaawansowanym.
+
+    function startFalszerzAction() {
+
+        // Niezależnie od trybu - panel Medyka na pewno trzeba ukryć
+
+        document.getElementById(
+            "medicAction"
+        ).style.display = "none";
+
+
+        if (gameMode !== "advanced") {
+
+            startShamanAction();
+
+            return;
+        }
+
+
+        document.getElementById(
+            "falszerzAction"
+        ).style.display = "block";
+
+
+        document.getElementById(
+            "falszerzInfo"
+        ).textContent =
+            describeRoleHolder("🃏", "Fałszerz");
+
+
+        generateFalszerzTargets();
+
+    }
+
+    // =========================================
+    // FAŁSZERZ - LISTA CELÓW
+    // =========================================
+    // Fałszerz nie może wrobić samego siebie ani tej samej osoby,
+    // którą wrobił poprzedniej nocy.
+
+    function generateFalszerzTargets() {
+
+        const select =
+            document.getElementById("falszerzTarget");
+
+        select.innerHTML = "";
+
+        const falszerz =
+            players.find(
+                p => p.role === "Fałszerz" && p.alive
+            );
+
+        const previousTarget =
+            game.previousFalszerzTarget;
+
+        players.forEach(player => {
+
+            if (!player.alive) return;
+
+            if (falszerz && player.id === falszerz.id) return;
+
+            if (player.id === previousTarget) return;
+
+            const option = document.createElement("option");
+            option.value = player.id;
+            option.textContent = player.name;
+            select.appendChild(option);
+
+        });
+
+    }
+
+    // =========================================
+    // FAŁSZERZ - ZATWIERDZENIE
+    // =========================================
+
+    function confirmFalszerzAction() {
+
+        const falszerz =
+            players.find(
+                p => p.role === "Fałszerz" && p.alive
+            );
+
+        if (!falszerz) {
+
+            logNightEvent(
+                "🃏 Fałszerz nie żyje / nie występuje - noc bez akcji Fałszerza."
+            );
+
+            document.getElementById(
+                "falszerzAction"
+            ).style.display = "none";
+
+            startShamanAction();
+
+            return;
+        }
+
+        const select =
+            document.getElementById("falszerzTarget");
+
+        const targetId =
+            parseInt(select.value);
+
+        const target =
+            players.find(p => p.id === targetId);
+
+        if (!target) {
+
+            alert("Wybierz osobę.");
+
+            return;
+        }
+
+        const falszerzBlocked =
+            game.currentNight.alcoholicBlocked === falszerz.id;
+
+        // Zapamiętujemy cel do sprawdzenia "nie dwa razy pod rząd"
+        // w KOLEJNEJ nocy - niezależnie od tego, czy akcja się udała.
+
+        game.previousFalszerzTarget = targetId;
+
+        if (falszerzBlocked) {
+
+            logNightEvent(
+                "🍺 Fałszerz został zablokowany przez Alkoholika " +
+                "i nie mógł nikogo tej nocy wrobić."
+            );
+
+            alert(
+                "🍺 Fałszerz został zablokowany przez Alkoholika " +
+                "i nie mógł nikogo tej nocy wrobić."
+            );
+
+        } else {
+
+            game.currentNight.falszerz = targetId;
+
+            registerVisit(falszerz.id, targetId);
+
+            logNightEvent(
+                "🃏 Fałszerz wrobił: " + target.name +
+                " (jego frakcja jest odwrócona tylko tej nocy)."
+            );
+
+        }
+
+        document.getElementById(
+            "falszerzAction"
+        ).style.display = "none";
 
         startShamanAction();
 
@@ -1525,8 +1895,11 @@
 
     function startShamanAction() {
 
+        // POPRAWKA: poprzednim krokiem jest teraz Fałszerz, nie
+        // bezpośrednio Medyk.
+
         document.getElementById(
-            "medicAction"
+            "falszerzAction"
         ).style.display = "none";
 
 
@@ -1619,7 +1992,7 @@
                 "🧙 Szaman nie żyje / nie występuje - noc bez akcji Szamana."
             );
 
-            startMafiaAction();
+            startWieszczAction();
 
             return;
         }
@@ -1650,6 +2023,8 @@
         game.currentNight.shaman =
             target.id;
 
+        registerVisit(shaman.id, target.id);
+
 
         const shamanBlocked =
             game.currentNight.alcoholicBlocked === shaman.id;
@@ -1662,12 +2037,23 @@
                 "i nie mógł nikogo tej nocy sprawdzić."
             );
 
+            // POPRAWKA: natychmiastowy alert o blokadzie
+
+            alert(
+                "🍺 Szaman został zablokowany przez Alkoholika " +
+                "i nie mógł nikogo tej nocy sprawdzić."
+            );
+
         } else {
 
-            // Ustalamy frakcję celu
+            // Ustalamy frakcję celu (z uwzględnieniem ewentualnego
+            // wrobienia przez Fałszerza tej nocy)
+
+            const effectiveCategory =
+                getEffectiveFactionCategory(target);
 
             const isGood =
-                isGoodRole(target.role);
+                effectiveCategory === "good";
 
 
             const faction =
@@ -1699,7 +2085,193 @@
         }
 
 
-        // Następna rola: Mafia
+        // Następna rola: Wieszcz (przed Mafią)
+
+        startWieszczAction();
+
+    }
+
+
+    // =========================================
+    // WIESZCZ - ROZPOCZĘCIE AKCJI
+    // =========================================
+
+    function startWieszczAction() {
+
+        // POPRAWKA: Wieszcz nie istnieje w trybie podstawowym - w
+        // ogóle pomijamy ten krok (bez panelu, bez wzmianki w logu),
+        // żeby role trybu zaawansowanego nie przenikały do gry
+        // podstawowej.
+
+        if (gameMode !== "advanced") {
+
+            startMafiaAction();
+
+            return;
+        }
+
+
+        document.getElementById(
+            "shamanAction"
+        ).style.display = "none";
+
+        document.getElementById(
+            "wieszczAction"
+        ).style.display = "block";
+
+        document.getElementById(
+            "wieszczInfo"
+        ).textContent =
+            describeRoleHolder("🔮", "Wieszcz");
+
+        generateWieszczTargets();
+
+    }
+
+    // =========================================
+    // WIESZCZ - LISTA CELÓW
+    // =========================================
+    // Wieszcz nie może wybrać samego siebie w żadnym z pól.
+    // Logika uniemożliwiająca wybranie tej samej osoby dwa razy
+    // jest obsługiwana przy zatwierdzaniu.
+
+    function generateWieszczTargets() {
+
+        const wieszcz =
+            players.find(
+                p => p.role === "Wieszcz" && p.alive
+            );
+
+        [
+            document.getElementById("wieszczTarget1"),
+            document.getElementById("wieszczTarget2")
+        ].forEach(select => {
+
+            select.innerHTML = "";
+
+            players.forEach(player => {
+
+                if (!player.alive) return;
+
+                if (wieszcz && player.id === wieszcz.id) return;
+
+                const option = document.createElement("option");
+                option.value = player.id;
+                option.textContent = player.name;
+                select.appendChild(option);
+
+            });
+
+        });
+
+    }
+
+    // =========================================
+    // WIESZCZ - ZATWIERDZENIE
+    // =========================================
+
+    function confirmWieszczAction() {
+
+        const wieszcz =
+            players.find(
+                p => p.role === "Wieszcz" && p.alive
+            );
+
+        if (!wieszcz) {
+
+            logNightEvent(
+                "🔮 Wieszcz nie żyje / nie występuje - noc bez akcji Wieszcza."
+            );
+
+            document.getElementById(
+                "wieszczAction"
+            ).style.display = "none";
+
+            startMafiaAction();
+
+            return;
+        }
+
+        const id1 =
+            parseInt(document.getElementById("wieszczTarget1").value);
+
+        const id2 =
+            parseInt(document.getElementById("wieszczTarget2").value);
+
+        if (id1 === id2) {
+
+            alert("Wybierz dwie RÓŻNE osoby.");
+
+            return;
+        }
+
+        const target1 = players.find(p => p.id === id1);
+        const target2 = players.find(p => p.id === id2);
+
+        if (!target1 || !target2) {
+
+            alert("Nieprawidłowy wybór.");
+
+            return;
+        }
+
+        // Wieszcz odwiedza obie osoby (widoczne dla Obserwatora)
+
+        registerVisit(wieszcz.id, target1.id);
+        registerVisit(wieszcz.id, target2.id);
+
+        game.currentNight.wieszcz = [id1, id2];
+
+
+        const wieszczBlocked =
+            game.currentNight.alcoholicBlocked === wieszcz.id;
+
+        if (wieszczBlocked) {
+
+            logNightEvent(
+                "🍺 Wieszcz został zablokowany przez Alkoholika " +
+                "i nie mógł nic sprawdzić tej nocy."
+            );
+
+            alert(
+                "🍺 Wieszcz został zablokowany przez Alkoholika " +
+                "i nie mógł nic sprawdzić tej nocy."
+            );
+
+        } else {
+
+            // POPRAWKA: porównujemy EFEKTYWNĄ frakcję (uwzględniającą
+            // ewentualne wrobienie przez Fałszerza tej nocy), a nie
+            // bezpośrednio rolę.
+
+            const sameFaction =
+                getEffectiveFactionCategory(target1) ===
+                getEffectiveFactionCategory(target2);
+
+            const result =
+                sameFaction
+                    ? "TAK — należą do tej samej frakcji."
+                    : "NIE — należą do różnych frakcji.";
+
+            logNightEvent(
+                "🔮 Wieszcz sprawdził " +
+                target1.name + " i " + target2.name +
+                " — " + result
+            );
+
+            // Alert od razu (jak Szaman i Informator)
+
+            alert(
+                "🔮 Wieszcz sprawdził:\n" +
+                target1.name + " i " + target2.name +
+                "\n\n" + result
+            );
+
+        }
+
+        document.getElementById(
+            "wieszczAction"
+        ).style.display = "none";
 
         startMafiaAction();
 
@@ -1732,9 +2304,18 @@
             describeRoleHolder("🔫", "Mafia");
 
 
+        // POPRAWKA: hierarchia zabójcy to teraz Mafia -> Informator
+        // -> Fałszerz (Fałszerz przejmuje dopiero, gdy ZARÓWNO Mafia,
+        // JAK I Informator nie żyją).
+
         const mafiaAlive =
             players.some(
                 player => player.role === "Mafia" && player.alive
+            );
+
+        const informatorAlive =
+            players.some(
+                player => player.role === "Informator" && player.alive
             );
 
         const subNote =
@@ -1745,12 +2326,19 @@
             subNote.style.display = "none";
             subNote.textContent = "";
 
-        } else {
+        } else if (informatorAlive) {
 
             subNote.style.display = "block";
 
             subNote.textContent =
                 "(Mafia nie żyje - decyzję podejmuje teraz Informator.)";
+
+        } else {
+
+            subNote.style.display = "block";
+
+            subNote.textContent =
+                "(Mafia i Informator nie żyją - decyzję podejmuje teraz Fałszerz.)";
 
         }
 
@@ -1762,8 +2350,8 @@
     // =========================================
     // MAFIA - LISTA CELÓW
     // =========================================
-    // POPRAWKA: Mafia (i zastępujący ją Informator) nie może wybrać
-    // na cel Informatora - to jego drużynowy kolega, jest chroniony.
+    // POPRAWKA: Mafia (i zastępujący ją Informator/Fałszerz) nie może
+    // wybrać na cel żadnego ze swoich drużynowych kolegów.
 
     function generateMafiaTargets() {
 
@@ -1794,10 +2382,10 @@
             }
 
 
-            // POPRAWKA: Mafia (ani zastępujący ją Informator) nie
-            // może zabić Informatora - to jej drużynowy kolega.
+            // POPRAWKA: Mafia (ani zastępujący ją Informator/Fałszerz)
+            // nie może zabić swoich drużynowych kolegów.
 
-            if (player.role === "Informator") {
+            if (player.role === "Informator" || player.role === "Fałszerz") {
                 return;
             }
 
@@ -1820,10 +2408,9 @@
     // =========================================
     // MAFIA - ZATWIERDZENIE
     // =========================================
-    // POPRAWKA: panel nie jest już pomijany, gdy Mafia nie żyje -
-    // zamiast tego uznajemy Informatora za faktycznie działającego
-    // (blokada Alkoholika sprawdzana jest wtedy względem NIEGO).
-    // Jeśli zarówno Mafia, jak i Informator nie żyją, gra i tak
+    // POPRAWKA: hierarchia zabójcy to Mafia -> Informator -> Fałszerz.
+    // Fałszerz przejmuje zabijanie dopiero, gdy zarówno Mafia, jak
+    // i Informator nie żyją. Jeśli cała trójka nie żyje, gra i tak
     // powinna była się już zakończyć wcześniej (checkWinConditions),
     // ale zostawiamy zabezpieczenie na wszelki wypadek.
 
@@ -1839,16 +2426,21 @@
                 player => player.role === "Informator" && player.alive
             );
 
+        const falszerz =
+            players.find(
+                player => player.role === "Fałszerz" && player.alive
+            );
+
         // Kto faktycznie dokonuje wyboru tej nocy
 
         const actingKiller =
-            mafia || informator;
+            mafia || informator || falszerz;
 
 
         if (!actingKiller) {
 
             logNightEvent(
-                "🔫 Brak żyjącej Mafii i Informatora - noc bez zabójstwa."
+                "🔫 Brak żyjącej Mafii, Informatora i Fałszerza - noc bez zabójstwa."
             );
 
             document.getElementById(
@@ -1883,22 +2475,40 @@
             game.currentNight.alcoholicBlocked === actingKiller.id;
 
 
+        // Etykieta aktualnego zabójcy - do komunikatów
+
+        const killerLabel =
+            mafia
+                ? "Mafia"
+                : (informator ? "Informator" : "Fałszerz");
+
+
         if (killerBlocked) {
 
             game.currentNight.mafia = null;
 
-            logNightEvent(
+            if (mafia) {
 
-                (mafia ? "🍺 Mafia" : "🍺 Informator") +
-                " została/został zablokowana/y przez Alkoholika " +
-                "i nie mogła/mógł nikogo tej nocy zabić."
+                logNightEvent(
+                    "🍺 Mafia została zablokowana przez Alkoholika " +
+                    "i nie mogła nikogo tej nocy zabić."
+                );
 
-            );
+            } else {
+
+                logNightEvent(
+                    "🍺 " + killerLabel + " został zablokowany przez Alkoholika " +
+                    "i nie mógł nikogo tej nocy zabić."
+                );
+
+            }
 
         } else {
 
             game.currentNight.mafia =
                 target.id;
+
+            registerVisit(actingKiller.id, target.id);
 
             if (mafia) {
 
@@ -1906,11 +2516,18 @@
                     "🔫 Mafia wybrała cel: " + target.name
                 );
 
-            } else {
+            } else if (informator) {
 
                 logNightEvent(
                     "🔫 Informator (przejmując rolę zabójcy, bo Mafia " +
                     "nie żyje) wybrał cel: " + target.name
+                );
+
+            } else {
+
+                logNightEvent(
+                    "🔫 Fałszerz (przejmując rolę zabójcy, bo Mafia i " +
+                    "Informator nie żyją) wybrał cel: " + target.name
                 );
 
             }
@@ -1999,9 +2616,10 @@
             }
 
 
-            // POPRAWKA: Informator nie może wybrać swojego kolegi z Mafii
+            // POPRAWKA: Informator nie może wybrać żadnego ze swoich
+            // drużynowych kolegów z Mafii.
 
-            if (player.role === "Mafia") {
+            if (player.role === "Mafia" || player.role === "Fałszerz") {
                 return;
             }
 
@@ -2050,7 +2668,7 @@
                 "informatorAction"
             ).style.display = "none";
 
-            endNight();
+            startObserwatorAction();
 
             return;
         }
@@ -2081,10 +2699,17 @@
         game.currentNight.informator =
             target.id;
 
+        registerVisit(informator.id, target.id);
+
 
         if (informatorBlocked) {
 
             logNightEvent(
+                "🍺 Informator został zablokowany przez Alkoholika " +
+                "i nie mógł nikogo tej nocy sprawdzić."
+            );
+
+            alert(
                 "🍺 Informator został zablokowany przez Alkoholika " +
                 "i nie mógł nikogo tej nocy sprawdzić."
             );
@@ -2117,6 +2742,176 @@
         ).style.display = "none";
 
 
+        startObserwatorAction();
+
+    }
+
+
+    // =========================================
+    // OBSERWATOR - ROZPOCZĘCIE AKCJI
+    // =========================================
+    // Obserwator działa jako OSTATNI w kolejności nocnej.
+    // Widzi kto odwiedził wskazany cel tej nocy.
+
+    function startObserwatorAction() {
+
+        // POPRAWKA: Obserwator nie istnieje w trybie podstawowym -
+        // pomijamy go całkowicie i kończymy noc od razu po Informatorze.
+
+        if (gameMode !== "advanced") {
+
+            document.getElementById(
+                "informatorAction"
+            ).style.display = "none";
+
+            endNight();
+
+            return;
+        }
+
+
+        document.getElementById(
+            "informatorAction"
+        ).style.display = "none";
+
+        document.getElementById(
+            "obserwatorAction"
+        ).style.display = "block";
+
+        document.getElementById(
+            "obserwatorInfo"
+        ).textContent =
+            describeRoleHolder("👁️", "Obserwator");
+
+        generateObserwatorTargets();
+
+    }
+
+    // =========================================
+    // OBSERWATOR - LISTA CELÓW
+    // =========================================
+    // Obserwator może obserwować każdego żywego gracza
+    // (włącznie z samym sobą — może obserwować swój własny dom).
+
+    function generateObserwatorTargets() {
+
+        const select =
+            document.getElementById("obserwatorTarget");
+
+        select.innerHTML = "";
+
+        players.forEach(player => {
+
+            if (!player.alive) return;
+
+            const option = document.createElement("option");
+            option.value = player.id;
+            option.textContent = player.name;
+            select.appendChild(option);
+
+        });
+
+    }
+
+    // =========================================
+    // OBSERWATOR - ZATWIERDZENIE
+    // =========================================
+
+    function confirmObserwatorAction() {
+
+        const obserwator =
+            players.find(
+                p => p.role === "Obserwator" && p.alive
+            );
+
+        if (!obserwator) {
+
+            logNightEvent(
+                "👁️ Obserwator nie żyje / nie występuje - noc bez akcji Obserwatora."
+            );
+
+            document.getElementById(
+                "obserwatorAction"
+            ).style.display = "none";
+
+            endNight();
+
+            return;
+        }
+
+        const select =
+            document.getElementById("obserwatorTarget");
+
+        const targetId =
+            parseInt(select.value);
+
+        const target =
+            players.find(p => p.id === targetId);
+
+        if (!target) {
+
+            alert("Wybierz osobę.");
+
+            return;
+        }
+
+        game.currentNight.obserwator = targetId;
+
+        const obserwatorBlocked =
+            game.currentNight.alcoholicBlocked === obserwator.id;
+
+        if (obserwatorBlocked) {
+
+            logNightEvent(
+                "👁️ Obserwator został zablokowany przez Alkoholika " +
+                "i niczego tej nocy nie widział."
+            );
+
+            alert(
+                "🍺 Obserwator został zablokowany przez Alkoholika " +
+                "i niczego tej nocy nie widział."
+            );
+
+        } else {
+
+            // Sprawdzamy kto odwiedził cel tej nocy
+
+            const visitors =
+                (game.currentNight.visits[targetId] || [])
+                .map(visitorId => players.find(p => p.id === visitorId))
+                .filter(Boolean);
+
+            logNightEvent(
+                "👁️ Obserwator obserwował: " + target.name
+            );
+
+            if (visitors.length === 0) {
+
+                alert(
+                    "👁️ Obserwator obserwował: " + target.name +
+                    "\n\nNikt nie odwiedził tej osoby tej nocy."
+                );
+
+            } else {
+
+                const names =
+                    visitors
+                        .map(v => v.name)
+                        .join(", ");
+
+                alert(
+                    "👁️ Obserwator obserwował: " + target.name +
+                    "\n\nOdwiedzili tę osobę tej nocy:\n" + names
+                );
+
+            }
+
+        }
+
+        document.getElementById(
+            "obserwatorAction"
+        ).style.display = "none";
+
         endNight();
 
     }
@@ -2133,6 +2928,12 @@
 
         const killTargetId = game.currentNight.mafia;
         const saveTargetId = game.currentNight.medic;
+
+        // NOWOŚĆ: jeśli tej nocy Guślarz zostanie zaatakowany po raz
+        // PIERWSZY, przeżywa (jednorazowa odporność) - ustawiamy tu
+        // flagę, żeby po zbiorczym podsumowaniu nocy pokazać osobny,
+        // wielki alert z pełną historią odwiedzin.
+        let guslarSurvivedThisNight = null;
 
 
         if (killTargetId) {
@@ -2160,6 +2961,36 @@
                         playerName: victim.name
 
                     });
+
+                } else if (
+                    victim.role === "Guślarz" &&
+                    !victim.guslarAttacked
+                ) {
+
+                    // POPRAWKA: Guślarz przeżywa pierwszy atak Mafii -
+                    // NIE umiera, tylko zużywa jednorazową odporność.
+
+                    victim.guslarAttacked = true;
+
+                    logNightEvent(
+                        "😱 " + victim.name +
+                        " (Guślarz) został zaatakowany przez Mafię, " +
+                        "ale PRZEŻYŁ - zużył swoją jednorazową odporność!"
+                    );
+
+                    game.history.push({
+
+                        type: "guslar_survive",
+
+                        night: game.night,
+
+                        playerId: victim.id,
+
+                        playerName: victim.name
+
+                    });
+
+                    guslarSurvivedThisNight = victim;
 
                 } else {
 
@@ -2217,15 +3048,50 @@
         // =====================================
         // ZBIORCZE PODSUMOWANIE NOCY
         // =====================================
-        // POPRAWKA: zamiast osobnych alertów po każdej akcji,
-        // pokazujemy teraz jedno podsumowanie wszystkiego, co
-        // wydarzyło się tej nocy.
 
         const summary =
             "🌙 Podsumowanie nocy " + game.night + ":\n\n" +
             game.currentNight.log.join("\n");
 
         alert(summary);
+
+
+        // =====================================
+        // GUŚLARZ - PIERWSZY ATAK (PRZEŻYCIE)
+        // =====================================
+        // POPRAWKA: alert z pełną historią odwiedzin pokazuje się
+        // TYLKO za pierwszym razem, gdy Guślarz zostanie zaatakowany
+        // (nie umiera wtedy - patrz logika wyżej). Przy drugim ataku
+        // Guślarz normalnie umiera bez powtórnego alertu.
+
+        if (guslarSurvivedThisNight) {
+
+            // POPRAWKA: zamiast rozbicia "Noc X: Imię" (z możliwymi
+            // powtórzeniami tej samej osoby z różnych nocy), pokazujemy
+            // teraz zwykłą listę unikalnych osób, które kiedykolwiek
+            // odwiedziły Guślarza przez całą rozgrywkę.
+
+            const uniqueVisitorNames =
+                [...new Set(
+                    game.guslarVisits.map(v => v.visitorName)
+                )];
+
+            const visitSummary =
+                uniqueVisitorNames.length === 0
+                    ? "Nikt nie odwiedził Guślarza przez całą rozgrywkę."
+                    : uniqueVisitorNames.join("\n");
+
+            alert(
+                "⚠️ WSTRZYMAJ NOC ⚠️\n\n" +
+                "GUŚLARZ (" + guslarSurvivedThisNight.name + ") ZOSTAŁ ZAATAKOWANY " +
+                "PRZEZ MAFIĘ, ALE PRZEŻYŁ!\n\n" +
+                "Powiedz graczowi, że został zaatakowany i wskaż mu kto go " +
+                "odwiedzał przez całą dotychczasową rozgrywkę:\n\n" +
+                visitSummary +
+                "\n\nUWAGA: Guślarz umrze przy KOLEJNYM ataku Mafii."
+            );
+
+        }
 
 
         const gameEnded = checkWinConditions();
@@ -2399,6 +3265,8 @@
 
                     peacemakerUsed: false,
 
+                    guslarAttacked: false,
+
                     deathReason: null,
 
                     deathDay: null,
@@ -2427,6 +3295,8 @@
 
             previousAlcoholicTarget: null,
 
+            previousFalszerzTarget: null,
+
             currentNight: {
 
                 alcoholic: null,
@@ -2434,15 +3304,25 @@
 
                 medic: null,
 
+                falszerz: null,
+
                 shaman: null,
+
+                wieszcz: null,
 
                 mafia: null,
 
                 informator: null,
 
+                obserwator: null,
+
+                visits: {},
+
                 log: []
 
             },
+
+            guslarVisits: [],
 
             history: []
 
