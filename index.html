@@ -92,6 +92,65 @@
             background: #383838;
         }
 
+        /* NOWOŚĆ: przełącznik trybu podstawowy / zaawansowany */
+        .mode-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .mode-button {
+            flex: 1;
+            margin-top: 0;
+            padding: 14px;
+            background: #292929;
+            border: 2px solid #333;
+            font-size: 15px;
+        }
+
+        .mode-button:hover {
+            background: #383838;
+        }
+
+        .mode-button.active {
+            background: #8b0000;
+            border-color: #a00000;
+        }
+
+        /* NOWOŚĆ: tabela ról dostępnych w danym trybie */
+        .roles-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+            font-size: 15px;
+        }
+
+        .roles-table th,
+        .roles-table td {
+            border: 1px solid #333;
+            padding: 8px 10px;
+            text-align: center;
+        }
+
+        .roles-table th {
+            background: #1d1d1d;
+            color: #ccc;
+        }
+
+        .roles-table td:first-child,
+        .roles-table th:first-child {
+            text-align: left;
+        }
+
+        .roles-table td {
+            background: #171717;
+            color: #ddd;
+        }
+
+        .roles-table .role-unavailable {
+            color: #555;
+        }
+
         .screen {
             display: none;
         }
@@ -185,6 +244,19 @@
             margin-left: 8px;
         }
 
+        /* NOWOŚĆ: wielki napis w podsumowaniu nocy gdy zginął Guślarz */
+        .guslar-alert {
+            background: #3a0000;
+            border: 2px solid #8b0000;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+            color: #ff6060;
+        }
+
         /* ROZGRYWKA */
 
         .player-list {
@@ -227,10 +299,80 @@
             Panel Mistrza Gry
         </div>
 
+        <!-- NOWOŚĆ: przełącznik trybu podstawowy / zaawansowany -->
+
+        <div class="mode-toggle">
+
+            <button
+                id="modeBasicBtn"
+                class="mode-button active"
+                onclick="setGameMode('basic')">
+                Tryb podstawowy
+            </button>
+
+            <button
+                id="modeAdvancedBtn"
+                class="mode-button"
+                onclick="setGameMode('advanced')">
+                Tryb zaawansowany
+            </button>
+
+        </div>
+
+        <!-- NOWOŚĆ: tabela poglądowa - jakie role są dostępne w
+             którym trybie. Obserwator i Łowca na razie występują
+             tylko tutaj / w formularzu przypisywania ról - nie mają
+             jeszcze zaimplementowanej akcji nocnej. -->
+
+        <table class="roles-table">
+
+            <thead>
+                <tr>
+                    <th>Rola</th>
+                    <th>Podstawowy</th>
+                    <th>Zaawansowany</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                <tr><td>Mafia</td><td>✅</td><td>✅</td></tr>
+                <tr><td>Informator</td><td>✅</td><td>✅</td></tr>
+                <tr><td>Medyk</td><td>✅</td><td>✅</td></tr>
+                <tr><td>Alkoholik</td><td>✅</td><td>✅</td></tr>
+                <tr><td>Szaman</td><td>✅</td><td>✅</td></tr>
+                <tr><td>Błazen</td><td>✅</td><td>✅</td></tr>
+                <tr><td>Wieśniak</td><td>✅</td><td>✅</td></tr>
+                <tr><td>Rozjemca</td><td>✅</td><td>✅</td></tr>
+                <tr>
+                    <td>Obserwator</td>
+                    <td class="role-unavailable">—</td>
+                    <td>✅</td>
+                </tr>
+                <tr>
+                    <td>Guślarz</td>
+                    <td class="role-unavailable">—</td>
+                    <td>✅</td>
+                </tr>
+                <tr>
+                    <td>Wieszcz</td>
+                    <td class="role-unavailable">—</td>
+                    <td>✅</td>
+                </tr>
+                <tr>
+                    <td>Fałszerz</td>
+                    <td class="role-unavailable">—</td>
+                    <td>✅</td>
+                </tr>
+            </tbody>
+
+        </table>
+
         <button onclick="newGame()">
             Nowa rozgrywka
         </button>
 
+        <!-- UWAGA: funkcja wczytywania zapisanej rozgrywki nie jest
+             jeszcze zaimplementowana - przycisk celowo bez akcji -->
         <button class="secondary-button" disabled title="Funkcja niedostępna">
             Wczytaj rozgrywkę
         </button>
@@ -250,6 +392,8 @@
             Liczba graczy
         </label>
 
+        <!-- POPRAWKA: max ustawiony na 8, bo tyle mamy unikalnych ról
+             (spójne z walidacją w createPlayers()) -->
         <input
             type="number"
             id="playerCount"
@@ -299,6 +443,11 @@
     <!-- ========================================= -->
     <!-- EKRAN ROZGRYWKI -->
     <!-- ========================================= -->
+    <!-- POPRAWKA: usunięto zduplikowane bloki #peacemakerAction i
+         #votingAction, które wcześniej istniały dwa razy w dokumencie
+         (getElementById i tak zawsze łapał pierwszy, druga kopia była
+         martwym kodem). Cała rozgrywka (dzień, noc, lista graczy) jest
+         teraz poprawnie zagnieżdżona wewnątrz #gameScreen. -->
 
     <div id="gameScreen" class="screen">
 
@@ -407,6 +556,11 @@
         <!-- ========================================= -->
         <!-- NOC -->
         <!-- ========================================= -->
+        <!-- POPRAWKA: wszystkie panele akcji nocnych są teraz
+             rodzeństwem wewnątrz #nightActions i przełączają swoją
+             widoczność WZAJEMNIE, a nie poprzez ukrywanie samego
+             #nightActions (wcześniej ukrycie rodzica sprawiało, że
+             żaden panel nocny nigdy się nie pokazywał). -->
 
         <div id="nightActions" style="display: none;">
 
@@ -480,6 +634,38 @@
 
             </div>
 
+            <!-- FAŁSZERZ -->
+            <!-- NOWOŚĆ: rola Mafii. Wskazuje osobę, której frakcja
+                 jest odwrócona TYLKO tej nocy - wpływa to na wyniki
+                 Szamana i Wieszcza. Nie może wrobić tej samej osoby
+                 dwa razy pod rząd. -->
+
+            <div id="falszerzAction" style="display: none;">
+
+                <h2>🃏 Fałszerz</h2>
+
+                <div id="falszerzInfo" class="game-info">
+                </div>
+
+                <div class="game-info">
+                    Wybierz osobę, którą Fałszerz wrobi tej nocy
+                    (jej frakcja zostanie odwrócona tylko na tę noc).
+                </div>
+
+                <label for="falszerzTarget">
+                    Cel:
+                </label>
+
+                <select id="falszerzTarget">
+                    <!-- Gracze zostaną dodani przez JavaScript -->
+                </select>
+
+                <button onclick="confirmFalszerzAction()">
+                    Zatwierdź wybór
+                </button>
+
+            </div>
+
             <!-- SZAMAN -->
 
             <div id="shamanAction" style="display: none;">
@@ -502,6 +688,31 @@
                 </select>
 
                 <button onclick="confirmShamanAction()">
+                    Zatwierdź wybór
+                </button>
+
+            </div>
+
+            <!-- WIESZCZ -->
+
+            <div id="wieszczAction" style="display: none;">
+
+                <h2>🔮 Wieszcz</h2>
+
+                <div id="wieszczInfo" class="game-info">
+                </div>
+
+                <div class="game-info">
+                    Wybierz dwie osoby — Wieszcz sprawdzi, czy należą do tej samej frakcji.
+                </div>
+
+                <label for="wieszczTarget1">Pierwsza osoba:</label>
+                <select id="wieszczTarget1"></select>
+
+                <label for="wieszczTarget2" style="margin-top: 15px;">Druga osoba:</label>
+                <select id="wieszczTarget2"></select>
+
+                <button onclick="confirmWieszczAction()">
                     Zatwierdź wybór
                 </button>
 
@@ -540,6 +751,8 @@
             </div>
 
             <!-- MAFIA -->
+            <!-- POPRAWKA: brakowało generateMafiaTargets() i
+                 confirmMafiaAction() w JS - gra zawieszała się tutaj -->
 
             <div id="mafiaAction" style="display: none;">
 
@@ -565,6 +778,31 @@
                 </select>
 
                 <button onclick="confirmMafiaAction()">
+                    Zatwierdź wybór
+                </button>
+
+            </div>
+
+            <!-- OBSERWATOR -->
+            <!-- Obserwator działa jako OSTATNI w kolejności nocnej.
+                 Widzi wszystkich, którzy odwiedzili wskazany cel
+                 tej nocy. Alert wyświetlany od razu. -->
+
+            <div id="obserwatorAction" style="display: none;">
+
+                <h2>👁️ Obserwator</h2>
+
+                <div id="obserwatorInfo" class="game-info">
+                </div>
+
+                <div class="game-info">
+                    Wybierz osobę, którą Obserwator obserwował tej nocy.
+                </div>
+
+                <label for="obserwatorTarget">Cel:</label>
+                <select id="obserwatorTarget"></select>
+
+                <button onclick="confirmObserwatorAction()">
                     Zatwierdź wybór
                 </button>
 
@@ -611,7 +849,7 @@
 </div>
 
 
-<script src="script.js"></script>
+<script gdsfhbdfsdkgfrhksgsifyguesriyufg3wiryut3wyut3w4iry3iosduhfusdvnsdcvbsdfiug3w6y7r3247r234efhbiedfbdwifbhwdfbihsfsadyut3w4iry3iosduhfusdvnsdcvbsdfiug3w6y7r3247r234efhbiedfbdwifbhwdfbihsfsadyut3w4iry3iosduhfusdvnsdcvbsdfiug3w6y7r3247r234efhbiedfbdwifbhwdfbihsfsad4iry3iosduhfusdvnsdcvbsdfiug3w6y7r3247r234efhbiedfbdwifbhwdfbihsfsadfg3f src="script.js" fdsafydsafwiqfgwuegfuwedfvsjafvsjahd></script>
 
 </body>
 </html>
