@@ -7,7 +7,7 @@
     // jeśli obie się różnią (lub brakuje którejś), to przeglądarka
     // albo git nie podmienił któregoś z plików.
 
-    const APP_VERSION = "1.1.0";
+    const APP_VERSION = "1.3.1";
 
     // =========================================
     // DOSTĘPNE ROLE
@@ -239,6 +239,19 @@
 
     }
 
+    // NOWOŚĆ: nazwa roli do wyświetlenia - Szarlatanka, która straciła
+    // Błazna, jest pokazywana jako "Rozpaczona Szarlatanka" (rola w
+    // logice gry nadal brzmi "Szarlatanka").
+    function getRoleLabel(player) {
+
+        if (player.role === "Szarlatanka" && player.despaired) {
+            return "Rozpaczona Szarlatanka";
+        }
+
+        return player.role;
+
+    }
+
     function describeRoleHolder(icon, roleName) {
 
         const holder = getRoleHolder(roleName);
@@ -251,7 +264,7 @@
 
         const status = holder.alive ? "żyje" : "nie żyje";
 
-        return icon + " " + roleName + ": " + holder.name + " (" + status + ")";
+        return icon + " " + getRoleLabel(holder) + ": " + holder.name + " (" + status + ")";
 
     }
 
@@ -544,6 +557,22 @@
 
         });
 
+
+        // NOWOŚĆ: Błazen zastrzelony przez Rozjemcę - żywa Szarlatanka
+        // zmieni się w Rozpaczoną w KOLEJNEJ nocy.
+        if (target.role === "Błazen") {
+
+            const szarlatankaToDespair = players.find(
+                p => p.role === "Szarlatanka"
+                    && p.alive
+                    && !p.despaired
+            );
+
+            if (szarlatankaToDespair) {
+                szarlatankaToDespair.despairPending = true;
+            }
+
+        }
 
         // Czy cel był dobry?
 
@@ -945,6 +974,17 @@
                 // ta flaga zaznacza, że odporność została już zużyta.
                 guslarAttacked: false,
 
+                // NOWOŚĆ: Szarlatanka traci Błazna (zginął od Mafii) i
+                // staje się "Rozpaczoną Szarlatanką" - nowy cel: przeżyć.
+                despaired: false,
+
+                // POPRAWKA: Medyk może uleczyć SIEBIE tylko raz w grze.
+                medicSelfHealUsed: false,
+
+                // Szarlatanka: Błazen zginął za dnia (od Rozjemcy) -
+                // zmieni się w Rozpaczoną w kolejnej nocy.
+                despairPending: false,
+
                 deathReason: null,
 
                 deathDay: null,
@@ -1195,8 +1235,9 @@
         const evilCount =
             players.filter(p => EVIL_ROLES.includes(p.role)).length;
 
+        // POPRAWKA: neutralni też liczą się jako "reszta" przeciw Mafii.
         const goodCount =
-            players.filter(p => isGoodRole(p.role)).length;
+            players.filter(p => !EVIL_ROLES.includes(p.role)).length;
 
         if (evilCount === 0) {
 
@@ -1216,7 +1257,7 @@
 
             const proceed = confirm(
                 "Zła drużyna (" + evilCount + ") ma co najmniej " +
-                "tyle osób co dobra (" + goodCount + "). Mafia " +
+                "tyle osób co pozostali gracze (" + goodCount + "). Mafia " +
                 "wygra zaraz po pierwszej akcji. Rozpocząć mimo to?"
             );
 
@@ -1380,7 +1421,7 @@
 
 
             role.textContent =
-                player.role;
+                getRoleLabel(player);
 
 
             playerElement.appendChild(name);
@@ -1777,6 +1818,10 @@
             game.currentNight.alcoholicBlocked =
                 target.id;
 
+            // POPRAWKA: blokada liczy się jako ODWIEDZINY celu -
+            // Obserwator zobaczy Alkoholika przy zablokowanej osobie.
+            registerVisit(alcoholic.id, target.id);
+
             logNightEvent(
                 "🍺 Alkoholik zablokował: " + target.name
             );
@@ -1819,6 +1864,21 @@
     // MEDYK - ROZPOCZĘCIE AKCJI
     // =========================================
 
+    // Dopisek na panelu Medyka, gdy zużył już leczenie siebie
+    function medicSelfHealNote() {
+
+        const medic = players.find(
+            p => p.role === "Medyk" && p.alive
+        );
+
+        if (medic && medic.medicSelfHealUsed) {
+            return " - już uleczył siebie, nie może ponownie";
+        }
+
+        return "";
+
+    }
+
     function startMedicAction() {
 
         document.getElementById(
@@ -1836,7 +1896,7 @@
         document.getElementById(
             "medicInfo"
         ).textContent =
-            describeRoleHolder("🩺", "Medyk");
+            describeRoleHolder("🩺", "Medyk") + medicSelfHealNote();
 
 
         generateMedicTargets();
@@ -1855,12 +1915,26 @@
 
         select.innerHTML = "";
 
+        const medic = players.find(
+            p => p.role === "Medyk" && p.alive
+        );
+
 
         players.forEach(player => {
 
             // Medyk może leczyć tylko żywych
 
             if (!player.alive) {
+                return;
+            }
+
+            // POPRAWKA: po jednorazowym uleczeniu siebie Medyk
+            // nie może już wybrać samego siebie.
+            if (
+                medic
+                && player.id === medic.id
+                && medic.medicSelfHealUsed
+            ) {
                 return;
             }
 
@@ -1904,7 +1978,7 @@
                 "🩺 Medyk nie żyje / nie występuje - noc bez akcji Medyka."
             );
 
-            startFalszerzAction();
+            startMafiaAction();
 
             return;
         }
@@ -1928,6 +2002,19 @@
 
             return;
         }
+
+
+        // Zabezpieczenie: leczenie siebie tylko raz w całej grze
+        if (target.id === medic.id && medic.medicSelfHealUsed) {
+
+            alert(
+                "🩺 Medyk już raz uleczył siebie - " +
+                "nie może zrobić tego ponownie."
+            );
+
+            return;
+        }
+
 
 
         const medicBlocked =
@@ -1960,12 +2047,18 @@
                 "🩺 Medyk postanowił uleczyć: " + target.name
             );
 
+            // Leczenie siebie zużywa jednorazową możliwość (tylko gdy
+            // faktycznie się odbyło - zablokowany Medyk jej nie traci).
+            if (target.id === medic.id) {
+                medic.medicSelfHealUsed = true;
+            }
+
         }
 
 
         // Następna rola: Fałszerz
 
-        startFalszerzAction();
+        startMafiaAction();
 
     }
 
@@ -1980,7 +2073,7 @@
         // Niezależnie od trybu - panel Medyka na pewno trzeba ukryć
 
         document.getElementById(
-            "medicAction"
+            "informatorAction"
         ).style.display = "none";
 
 
@@ -2326,7 +2419,7 @@
         }
 
 
-        // Następna rola: Wieszcz (przed Mafią)
+        // Następna rola: Wieszcz
 
         startWieszczAction();
 
@@ -2346,7 +2439,7 @@
 
         if (gameMode !== "advanced") {
 
-            startMafiaAction();
+            startObserwatorAction();
 
             return;
         }
@@ -2428,7 +2521,7 @@
                 "wieszczAction"
             ).style.display = "none";
 
-            startMafiaAction();
+            startObserwatorAction();
 
             return;
         }
@@ -2514,7 +2607,7 @@
             "wieszczAction"
         ).style.display = "none";
 
-        startMafiaAction();
+        startObserwatorAction();
 
     }
 
@@ -2530,7 +2623,7 @@
     function startMafiaAction() {
 
         document.getElementById(
-            "shamanAction"
+            "medicAction"
         ).style.display = "none";
 
 
@@ -2886,8 +2979,7 @@
     // POPRAWKA: Informator zawsze wykonuje sprawdzenie dokładnej roli
     // (niezależnie od tego, czy przejął zabijanie) i - podobnie jak
     // Szaman - dostaje natychmiastowy alert z wynikiem, zamiast
-    // czekać na zbiorcze podsumowanie nocy. To ostatnia akcja nocna,
-    // więc kończymy noc od razu po niej.
+    // czekać na zbiorcze podsumowanie nocy. Po niej działa teraz Fałszerz.
 
     function confirmInformatorAction() {
 
@@ -2909,7 +3001,7 @@
                 "informatorAction"
             ).style.display = "none";
 
-            startObserwatorAction();
+            startFalszerzAction();
 
             return;
         }
@@ -2963,7 +3055,7 @@
                 "🕵️ Informator sprawdził " +
                 target.name +
                 " - rola: " +
-                target.role
+                getRoleLabel(target)
             );
 
 
@@ -2974,7 +3066,7 @@
                 "🕵️ Informator sprawdził: " +
                 target.name +
                 "\n\nRola: " +
-                target.role
+                getRoleLabel(target)
             );
 
         }
@@ -2985,7 +3077,7 @@
         ).style.display = "none";
 
 
-        startObserwatorAction();
+        startFalszerzAction();
 
     }
 
@@ -2999,13 +3091,13 @@
     function startObserwatorAction() {
 
         // POPRAWKA: Obserwator nie istnieje w trybie podstawowym -
-        // pomijamy go całkowicie i kończymy noc od razu po Informatorze.
+        // pomijamy go całkowicie i kończymy noc od razu po Szamanie.
 
         if (gameMode !== "advanced") {
 
-            document.getElementById(
-                "informatorAction"
-            ).style.display = "none";
+            document.getElementById("shamanAction").style.display = "none";
+            document.getElementById("wieszczAction").style.display = "none";
+            document.getElementById("informatorAction").style.display = "none";
 
             endNight();
 
@@ -3013,9 +3105,9 @@
         }
 
 
-        document.getElementById(
-            "informatorAction"
-        ).style.display = "none";
+        document.getElementById("shamanAction").style.display = "none";
+        document.getElementById("wieszczAction").style.display = "none";
+        document.getElementById("informatorAction").style.display = "none";
 
         document.getElementById(
             "obserwatorAction"
@@ -3178,6 +3270,9 @@
         // wielki alert z pełną historią odwiedzin.
         let guslarSurvivedThisNight = null;
 
+        // NOWOŚĆ: Szarlatanka, która straciła Błazna tej nocy
+        let szarlatankaDespairedThisNight = null;
+
 
         if (killTargetId) {
 
@@ -3267,6 +3362,41 @@
                         " (" + victim.role + ")"
                     );
 
+                    // NOWOŚĆ: Błazen zabity przez Mafię w nocy, a w grze
+                    // jest ŻYWA Szarlatanka -> staje się Rozpaczoną
+                    // Szarlatanką. Jej jedyny cel to przeżyć do końca gry.
+                    if (victim.role === "Błazen") {
+
+                        const szarlatanka = players.find(
+                            p => p.role === "Szarlatanka"
+                                && p.alive
+                                && !p.despaired
+                        );
+
+                        if (szarlatanka) {
+
+                            szarlatanka.despaired = true;
+
+                            szarlatankaDespairedThisNight = szarlatanka;
+
+                            logNightEvent(
+                                "🎭💔 Szarlatanka (" + szarlatanka.name +
+                                ") straciła Błazna! Mistrz Gry: podmień " +
+                                "jej kartę na ROZPACZONĄ SZARLATANKĘ. " +
+                                "Jej nowy cel: przeżyć do końca gry."
+                            );
+
+                            game.history.push({
+                                type: "szarlatanka_despair",
+                                night: game.night,
+                                playerId: szarlatanka.id,
+                                playerName: szarlatanka.name
+                            });
+
+                        }
+
+                    }
+
                 }
 
             }
@@ -3277,6 +3407,43 @@
 
         }
 
+
+        // NOWOŚĆ: Błazen zginął za dnia od Rozjemcy - Szarlatanka
+        // (jeśli wciąż żyje) zmienia się w Rozpaczoną tej nocy.
+        const pendingSzarlatanka = players.find(
+            p => p.role === "Szarlatanka"
+                && p.despairPending
+                && !p.despaired
+        );
+
+        if (pendingSzarlatanka) {
+
+            pendingSzarlatanka.despairPending = false;
+
+            if (pendingSzarlatanka.alive) {
+
+                pendingSzarlatanka.despaired = true;
+
+                szarlatankaDespairedThisNight = pendingSzarlatanka;
+
+                logNightEvent(
+                    "🎭💔 Szarlatanka (" + pendingSzarlatanka.name +
+                    ") straciła Błazna (zastrzelonego za dnia przez " +
+                    "Rozjemcę)! Mistrz Gry: podmień jej kartę na " +
+                    "ROZPACZONĄ SZARLATANKĘ. Jej nowy cel: przeżyć do " +
+                    "końca gry."
+                );
+
+                game.history.push({
+                    type: "szarlatanka_despair",
+                    night: game.night,
+                    playerId: pendingSzarlatanka.id,
+                    playerName: pendingSzarlatanka.name
+                });
+
+            }
+
+        }
 
         updateAliveCount();
 
@@ -3337,6 +3504,23 @@
         }
 
 
+        // =====================================
+        // SZARLATANKA - UTRATA BŁAZNA
+        // =====================================
+        if (szarlatankaDespairedThisNight) {
+
+            alert(
+                "⚠️ WSTRZYMAJ NOC ⚠️\n\n" +
+                "BŁAZEN NIE ŻYJE - SZARLATANKA (" +
+                szarlatankaDespairedThisNight.name +
+                ") STRACIŁA BŁAZNA!\n\n" +
+                "Podmień jej kartę na ROZPACZONĄ SZARLATANKĘ.\n" +
+                "Nowy cel: przeżyć do końca gry - tylko w ten sposób " +
+                "może teraz wygrać."
+            );
+
+        }
+
         const gameEnded = checkWinConditions();
 
         if (gameEnded) {
@@ -3373,15 +3557,30 @@
         const aliveEvil =
             alivePlayers.filter(player => EVIL_ROLES.includes(player.role));
 
+        // POPRAWKA: do warunku zwycięstwa Mafii liczą się WSZYSCY
+        // żywi gracze spoza złej drużyny - także neutralni (Błazen,
+        // Szarlatanka). Mafia wygrywa dopiero, gdy ma co najmniej tyle
+        // osób, co cała reszta.
         const aliveGood =
-            alivePlayers.filter(player => isGoodRole(player.role));
+            alivePlayers.filter(player => !EVIL_ROLES.includes(player.role));
 
+
+        // NOWOŚĆ: Rozpaczona Szarlatanka wygrywa, jeśli dożyje końca gry
+        // (niezależnie od tego, kto wygra).
+        const despairedWinner = alivePlayers.find(
+            p => p.role === "Szarlatanka" && p.despaired
+        );
+
+        const despairedNote = despairedWinner
+            ? "\n\n🎭 Wygrywa również Rozpaczona Szarlatanka (" +
+              despairedWinner.name + ") - przeżyła do końca gry."
+            : "";
 
         if (aliveEvil.length === 0) {
 
             showGameOver(
                 "🏆 MIASTO WYGRYWA!",
-                "Cała zła drużyna (Mafia i jej sojusznicy) została wyeliminowana."
+                "Cała zła drużyna (Mafia i jej sojusznicy) została wyeliminowana." + despairedNote
             );
 
             return true;
@@ -3392,7 +3591,7 @@
 
             showGameOver(
                 "🔫 MAFIA WYGRYWA!",
-                "Mafia przejęła kontrolę nad miastem."
+                "Mafia przejęła kontrolę nad miastem." + despairedNote
             );
 
             return true;
@@ -3488,6 +3687,17 @@
                     peacemakerUsed: false,
 
                     guslarAttacked: false,
+
+                // NOWOŚĆ: Szarlatanka traci Błazna (zginął od Mafii) i
+                // staje się "Rozpaczoną Szarlatanką" - nowy cel: przeżyć.
+                despaired: false,
+
+                // POPRAWKA: Medyk może uleczyć SIEBIE tylko raz w grze.
+                medicSelfHealUsed: false,
+
+                // Szarlatanka: Błazen zginął za dnia (od Rozjemcy) -
+                // zmieni się w Rozpaczoną w kolejnej nocy.
+                despairPending: false,
 
                     deathReason: null,
 
