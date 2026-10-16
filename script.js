@@ -1,5 +1,15 @@
 
     // =========================================
+    // WERSJA GRY
+    // =========================================
+    // Zwiększaj przy każdej zmianie. Wersja pliku script.js jest
+    // wyświetlana w rogu ekranu głównego obok wersji index.html -
+    // jeśli obie się różnią (lub brakuje którejś), to przeglądarka
+    // albo git nie podmienił któregoś z plików.
+
+    const APP_VERSION = "1.1.0";
+
+    // =========================================
     // DOSTĘPNE ROLE
     // =========================================
     // POPRAWKA: role dostępne zależą teraz od wybranego trybu gry
@@ -17,19 +27,18 @@
         "Informator"
     ];
 
-    // NOWOŚĆ: role dostępne DODATKOWO w trybie zaawansowanym.
-    // UWAGA: na razie to tylko role "na tabeli" / do wyboru w
-    // formularzu - Obserwator i Łowca nie mają jeszcze
-    // zaimplementowanej akcji nocnej ani specjalnych zasad. Dopóki
-    // ich mechanika nie powstanie, zachowują się jak zwykli neutralni
-    // gracze (nie liczą się do GOOD_ROLES ani EVIL_ROLES przy
-    // warunkach zwycięstwa - podobnie jak Błazen).
+    // Role dostępne DODATKOWO w trybie zaawansowanym. Wszystkie mają
+    // zaimplementowaną akcję nocną lub specjalne zasady. Do warunków
+    // zwycięstwa liczą się przez GOOD_ROLES / EVIL_ROLES poniżej
+    // (Błazen i Szarlatanka są neutralni i nie liczą się do żadnej z
+    // drużyn - nie ma ich ani w GOOD_ROLES, ani w EVIL_ROLES).
 
     const ADVANCED_ONLY_ROLES = [
         "Obserwator",
         "Guślarz",
         "Wieszcz",
-        "Fałszerz"
+        "Fałszerz",
+        "Szarlatanka"
     ];
 
     // Role "dobre" (Miasto) - używane przy sprawdzeniu Szamana
@@ -441,11 +450,12 @@
 
         if (!isFramed) return category;
 
-        // Odwracamy dobra<->zła. Neutralne role (np. Błazen) nie mają
-        // jednoznacznego "przeciwieństwa", więc zostawiamy bez zmian.
+        // Odwracamy dobra<->zła. Wrobiona rola neutralna (Błazen)
+        // jest na tę noc traktowana jako ZŁA.
 
         if (category === "good") return "evil";
         if (category === "evil") return "good";
+        if (category === "neutral") return "evil";
 
         return category;
 
@@ -763,14 +773,36 @@
 
         if (target.role === "Błazen") {
 
-            showGameOver(
+            // NOWOŚĆ: jeśli w grze jest Szarlatanka (żywa lub nie),
+            // wygrywa razem z Błaznem.
 
-                "🤡 BŁAZEN WYGRYWA!",
+            const szarlatanka = getRoleHolder("Szarlatanka");
 
-                target.name +
-                " został wygłosowany i spełnił swój cel."
+            if (szarlatanka) {
 
-            );
+                showGameOver(
+
+                    "🤡🎭 BŁAZEN I SZARLATANKA WYGRYWAJĄ!",
+
+                    target.name +
+                    " został wygłosowany i spełnił swój cel. " +
+                    "Razem z nim wygrywa Szarlatanka (" +
+                    szarlatanka.name + ")."
+
+                );
+
+            } else {
+
+                showGameOver(
+
+                    "🤡 BŁAZEN WYGRYWA!",
+
+                    target.name +
+                    " został wygłosowany i spełnił swój cel."
+
+                );
+
+            }
 
             return;
         }
@@ -845,9 +877,8 @@
 
     function newGame() {
 
-        // POPRAWKA: limit graczy dopasowany do liczby ról w
-        // aktualnie wybranym trybie (8 w podstawowym, 10 w
-        // zaawansowanym).
+        // Limit graczy = liczba ról dostępnych w aktualnym trybie
+        // (każda rola może być przypisana tylko jednemu graczowi).
 
         document.getElementById(
             "playerCount"
@@ -872,7 +903,11 @@
             getActiveRoles().length;
 
 
-        if (playerCount < 4 || playerCount > maxPlayers) {
+        if (
+            Number.isNaN(playerCount) ||
+            playerCount < 4 ||
+            playerCount > maxPlayers
+        ) {
 
             alert(
                 "Liczba graczy musi wynosić od 4 do " +
@@ -936,6 +971,11 @@
 
         const container =
             document.getElementById("playersContainer");
+
+        // Zapamiętujemy przewinięcie - czyszczenie kontenera zerowałoby
+        // je i lista skakałaby na górę po każdej zmianie roli.
+
+        const savedScroll = container.scrollTop;
 
         container.innerHTML = "";
 
@@ -1051,6 +1091,8 @@
 
         });
 
+        container.scrollTop = savedScroll;
+
     }
 
 
@@ -1071,6 +1113,23 @@
         if (selectedRoles.length !== uniqueRoles.size) {
 
             alert("Każda rola może być przypisana tylko jednemu graczowi.");
+
+            return;
+        }
+
+
+        // Szarlatanka wygrywa razem z Błaznem - bez Błazna w grze
+        // jej cel nie miałby sensu.
+
+        if (
+            selectedRoles.includes("Szarlatanka")
+            && !selectedRoles.includes("Błazen")
+        ) {
+
+            alert(
+                "Szarlatanka wymaga obecności Błazna w grze. " +
+                "Przypisz rolę Błazna któremuś z graczy."
+            );
 
             return;
         }
@@ -1104,6 +1163,70 @@
             }
 
         }
+
+
+        // Imiona muszą być różne (bez względu na wielkość liter i
+        // spacje na brzegach) - inaczej gracze zlewają się na listach.
+
+        const seenNames = new Set();
+
+        for (let i = 0; i < players.length; i++) {
+
+            const key = players[i].name.trim().toLowerCase();
+
+            if (seenNames.has(key)) {
+
+                alert(
+                    "Imiona graczy muszą być różne. Powtarza się: " +
+                    players[i].name.trim() +
+                    "."
+                );
+
+                return;
+            }
+
+            seenNames.add(key);
+        }
+
+
+        // W grze musi być przynajmniej jedna rola zła - inaczej
+        // Miasto "wygrywa" przy pierwszym sprawdzeniu.
+
+        const evilCount =
+            players.filter(p => EVIL_ROLES.includes(p.role)).length;
+
+        const goodCount =
+            players.filter(p => isGoodRole(p.role)).length;
+
+        if (evilCount === 0) {
+
+            alert(
+                "W grze musi być przynajmniej jedna rola zła " +
+                "(np. Mafia)."
+            );
+
+            return;
+        }
+
+
+        // Niezbalansowany start: zli mają co najmniej tyle osób co
+        // dobrzy, więc Mafia wygra po pierwszej akcji.
+
+        if (evilCount >= goodCount) {
+
+            const proceed = confirm(
+                "Zła drużyna (" + evilCount + ") ma co najmniej " +
+                "tyle osób co dobra (" + goodCount + "). Mafia " +
+                "wygra zaraz po pierwszej akcji. Rozpocząć mimo to?"
+            );
+
+            if (!proceed) return;
+        }
+
+
+        // Zapisujemy imiona bez spacji na brzegach
+
+        players.forEach(p => { p.name = p.name.trim(); });
 
 
         // Resetujemy stan rozgrywki
@@ -1372,6 +1495,7 @@
         // z poprzedniej nocy nie "przeciekał" do kolejnej.
 
         document.getElementById("nightStart").style.display = "block";
+        document.getElementById("szarlatankaAction").style.display = "none";
         document.getElementById("alcoholicAction").style.display = "none";
         document.getElementById("medicAction").style.display = "none";
         document.getElementById("falszerzAction").style.display = "none";
@@ -1392,6 +1516,121 @@
 
 
         updateAliveCount();
+
+    }
+
+    // =========================================
+    // POCZĄTEK NOCY - KOLEJNOŚĆ AKCJI
+    // =========================================
+    // NOWOŚĆ: przycisk "Rozpocznij noc" wywołuje tę funkcję. W
+    // pierwszej nocy trybu zaawansowanym jako PIERWSZA wykonuje się
+    // akcja Szarlatanki (przed Alkoholikiem). W każdej innej sytuacji
+    // noc zaczyna się normalnie od Alkoholika.
+
+    function startNightSequence() {
+
+        if (game.night === 1 && gameMode === "advanced") {
+
+            const szarlatanka = getRoleHolder("Szarlatanka");
+
+            if (szarlatanka && szarlatanka.alive) {
+
+                startSzarlatankaAction();
+
+                return;
+            }
+
+            if (szarlatanka && !szarlatanka.alive) {
+
+                logNightEvent(
+                    "🎭 Szarlatanka nie żyje - pominięto pokazanie kart."
+                );
+
+            }
+
+        }
+
+        startAlcoholicAction();
+
+    }
+
+    // =========================================
+    // SZARLATANKA - ROZPOCZĘCIE AKCJI
+    // =========================================
+    // NOWOŚĆ: rola neutralna (tryb zaawansowany). Nie wybiera celu i
+    // nie wykonuje akcji, więc nie może zostać zablokowana (Alkoholik
+    // jeszcze nawet nie działał) ani nie rejestruje odwiedzin.
+    // Jednorazowo, na początku pierwszej nocy, panel pokazuje listę
+    // ról, których NIE MA w tej rozgrywce - Mistrz Gry pokazuje
+    // Szarlatance karty tych postaci.
+
+    function getRolesNotInGame() {
+
+        return getActiveRoles().filter(
+            role => !players.some(player => player.role === role)
+        );
+
+    }
+
+    function startSzarlatankaAction() {
+
+        document.getElementById("nightStart").style.display = "none";
+
+        document.getElementById(
+            "szarlatankaAction"
+        ).style.display = "block";
+
+        document.getElementById(
+            "szarlatankaInfo"
+        ).textContent =
+            describeRoleHolder("🎭", "Szarlatanka");
+
+        const list = document.getElementById("szarlatankaRoles");
+
+        list.innerHTML = "";
+
+        const missingRoles = getRolesNotInGame();
+
+        if (missingRoles.length === 0) {
+
+            const li = document.createElement("li");
+
+            li.textContent =
+                "Wszystkie role są w tej rozgrywce - " +
+                "nie ma żadnej karty do pokazania.";
+
+            list.appendChild(li);
+
+        } else {
+
+            missingRoles.forEach(role => {
+
+                const li = document.createElement("li");
+
+                li.textContent = role;
+
+                list.appendChild(li);
+
+            });
+
+        }
+
+    }
+
+    function confirmSzarlatankaAction() {
+
+        const missingRoles = getRolesNotInGame();
+
+        logNightEvent(
+            "🎭 Szarlatanka poznała role nieobecne w grze: " +
+            (missingRoles.length ? missingRoles.join(", ") : "brak") + "."
+        );
+
+        document.getElementById(
+            "szarlatankaAction"
+        ).style.display = "none";
+
+        startAlcoholicAction();
 
     }
 
@@ -2023,8 +2262,6 @@
         game.currentNight.shaman =
             target.id;
 
-        registerVisit(shaman.id, target.id);
-
 
         const shamanBlocked =
             game.currentNight.alcoholicBlocked === shaman.id;
@@ -2045,6 +2282,10 @@
             );
 
         } else {
+
+            // Odwiedziny rejestrujemy TYLKO gdy Szaman nie jest
+            // zablokowany przez Alkoholika.
+            registerVisit(shaman.id, target.id);
 
             // Ustalamy frakcję celu (z uwzględnieniem ewentualnego
             // wrobienia przez Fałszerza tej nocy)
@@ -2215,11 +2456,6 @@
             return;
         }
 
-        // Wieszcz odwiedza obie osoby (widoczne dla Obserwatora)
-
-        registerVisit(wieszcz.id, target1.id);
-        registerVisit(wieszcz.id, target2.id);
-
         game.currentNight.wieszcz = [id1, id2];
 
 
@@ -2239,6 +2475,11 @@
             );
 
         } else {
+
+            // Wieszcz odwiedza obie osoby (widoczne dla Obserwatora)
+            // TYLKO gdy nie jest zablokowany przez Alkoholika.
+            registerVisit(wieszcz.id, target1.id);
+            registerVisit(wieszcz.id, target2.id);
 
             // POPRAWKA: porównujemy EFEKTYWNĄ frakcję (uwzględniającą
             // ewentualne wrobienie przez Fałszerza tej nocy), a nie
@@ -2699,8 +2940,6 @@
         game.currentNight.informator =
             target.id;
 
-        registerVisit(informator.id, target.id);
-
 
         if (informatorBlocked) {
 
@@ -2715,6 +2954,10 @@
             );
 
         } else {
+
+            // Odwiedziny rejestrujemy TYLKO gdy Informator nie jest
+            // zablokowany przez Alkoholika.
+            registerVisit(informator.id, target.id);
 
             logNightEvent(
                 "🕵️ Informator sprawdził " +
@@ -3138,7 +3381,7 @@
 
             showGameOver(
                 "🏆 MIASTO WYGRYWA!",
-                "Cała Mafia (wraz z Informatorem) została wyeliminowana."
+                "Cała zła drużyna (Mafia i jej sojusznicy) została wyeliminowana."
             );
 
             return true;
@@ -3160,27 +3403,6 @@
 
     }
 
-
-    // =========================================
-    // ROZJEMCA UJAWNIŁ ROLĘ
-    // =========================================
-
-    function revealedRole() {
-
-        game.history.push({
-
-            type: "day_event",
-
-            day: game.day,
-
-            description:
-                "Rozjemca ujawnił swoją rolę."
-
-        });
-
-        alert("Zapisano ujawnienie roli Rozjemcy.");
-
-    }
 
     function showGameOver(title, message) {
 
@@ -3346,3 +3568,29 @@
         showScreen("playersScreen");
 
     }
+
+
+    // =========================================
+    // WYŚWIETLANIE WERSJI
+    // =========================================
+    // Wersja index.html jest wpisana na stałe w elemencie
+    // #versionInfo, a script.js dopisuje własną wersję. Jeśli
+    // widzisz tylko "html" bez "js" albo różne numery - któryś plik
+    // nie został zaktualizowany (odśwież z Ctrl+F5).
+
+    (function showVersion() {
+
+        const el = document.getElementById("versionInfo");
+
+        if (!el) return;
+
+        const htmlVersion = el.dataset.htmlVersion || "?";
+
+        el.textContent =
+            "html v" + htmlVersion + " · js v" + APP_VERSION;
+
+        if (htmlVersion !== APP_VERSION) {
+            el.classList.add("version-mismatch");
+        }
+
+    })();
