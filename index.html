@@ -280,6 +280,22 @@
             color: #999;
             margin-top: 5px;
         }
+
+        /* Wersja gry - prawy dolny róg ekranu głównego */
+        #versionInfo {
+            position: fixed;
+            right: 10px;
+            bottom: 8px;
+            font-size: 11px;
+            opacity: 0.5;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #versionInfo.version-mismatch {
+            color: #ff6b6b;
+            opacity: 0.9;
+        }
     </style>
 </head>
 
@@ -298,6 +314,11 @@
         <div class="subtitle">
             Panel Mistrza Gry
         </div>
+
+        <!-- Wersja: html wpisana ręcznie, js dopisuje script.js.
+             Przy zmianach zwiększ data-html-version oraz APP_VERSION
+             w script.js. -->
+        <div id="versionInfo" data-html-version="1.1.0">html v1.1.0</div>
 
         <!-- NOWOŚĆ: przełącznik trybu podstawowy / zaawansowany -->
 
@@ -320,9 +341,8 @@
         </div>
 
         <!-- NOWOŚĆ: tabela poglądowa - jakie role są dostępne w
-             którym trybie. Obserwator i Łowca na razie występują
-             tylko tutaj / w formularzu przypisywania ról - nie mają
-             jeszcze zaimplementowanej akcji nocnej. -->
+             którym trybie. Role zaawansowane są dostępne tylko
+             w trybie zaawansowanym. -->
 
         <table class="roles-table">
 
@@ -360,6 +380,11 @@
                 </tr>
                 <tr>
                     <td>Fałszerz</td>
+                    <td class="role-unavailable">—</td>
+                    <td>✅</td>
+                </tr>
+                <tr>
+                    <td>Szarlatanka</td>
                     <td class="role-unavailable">—</td>
                     <td>✅</td>
                 </tr>
@@ -572,8 +597,39 @@
                     Wykonaj kolejno wszystkie akcje nocne.
                 </div>
 
-                <button onclick="startAlcoholicAction()">
+                <button onclick="startNightSequence()">
                     Rozpocznij noc
+                </button>
+
+            </div>
+
+
+            <!-- SZARLATANKA -->
+            <!-- NOWOŚĆ: rola neutralna (tryb zaawansowany). Działa
+                 tylko na początku pierwszej nocy, przed Alkoholikiem.
+                 Nie wybiera celu - panel jedynie pokazuje, których
+                 ról nie ma w tej grze, a Mistrz Gry pokazuje
+                 Szarlatance ich karty. -->
+
+            <div id="szarlatankaAction" style="display: none;">
+
+                <h2>🎭 Szarlatanka</h2>
+
+                <div id="szarlatankaInfo" class="game-info">
+                </div>
+
+                <div class="game-info">
+                    Pokaż Szarlatance karty poniższych postaci - tych
+                    ról nie ma w tej rozgrywce. Dzieje się to tylko
+                    raz, na początku pierwszej nocy.
+                </div>
+
+                <ul id="szarlatankaRoles">
+                    <!-- Role zostaną dodane przez JavaScript -->
+                </ul>
+
+                <button onclick="confirmSzarlatankaAction()">
+                    Karty pokazane - dalej
                 </button>
 
             </div>
@@ -849,7 +905,7 @@
 </div>
 
 
-<script gdsfhbdfsdkgfrhksgsifyguesriyufg3wiryut3wyut3w4iry3iosduhfusdvnsdcvbsdfiug3w6y7r3247r234efhbiedfbdwifbhwdfbihsfsadyut3w4iry3iosduhfusdvnsdcvbsdfiug3w6y7r3247r234efhbiedfbdwifbhwdfbihsfsadyut3w4iry3iosduhfusdvnsdcvbsdfiug3w6y7r3247r234efhbiedfbdwifbhwdfbihsfsad4iry3iosduhfusdvnsdcvbsdfiug3w6y7r3247r234efhbiedfbdwifbhwdfbihsfsadfg3f src="script.js" fdsafydsafwiqfgwuegfuwedfvsjafvsjahd></script>
+<script src="script.js"></script>
 
 </body>
 </html>
