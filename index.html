@@ -317,6 +317,39 @@
             accent-color: #8b0000;
         }
 
+        /* Okienko komunikatu (zamiast alert() przy komunikatach z dźwiękiem) */
+        #sfxModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        #sfxModal.open {
+            display: flex;
+        }
+
+        #sfxModalBox {
+            background: #1d1d1d;
+            border: 1px solid #444;
+            border-radius: 14px;
+            padding: 22px;
+            max-width: 460px;
+            width: 100%;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        #sfxModalText {
+            white-space: pre-wrap;
+            font-size: 17px;
+            line-height: 1.45;
+        }
+
         /* Wersja gry - prawy dolny róg ekranu głównego */
         #versionInfo {
             position: fixed;
@@ -351,6 +384,44 @@
      nocy zaczyna się nowy dzień. Podmień plik w "src" na własny. -->
 <audio id="dayStartSound" src="rooster.mp3" preload="auto"></audio>
 
+<!-- EFEKTY DŹWIĘKOWE
+     Każdy efekt to osobny <audio>. Żeby go użyć: wrzuć plik do folderu
+     z grą i wpisz jego nazwę w "src". Jeśli pliku nie ma (albo nie chcesz
+     danego dźwięku) - zostaw jak jest lub usuń linijkę, będzie po prostu cicho. -->
+
+<!-- Błazen wygrywa przez wygłosowanie (też razem z Szarlatanką) -->
+<audio id="jesterWinSound" src="jester-win.mp3" preload="auto"></audio>
+
+<!-- Rozjemca strzela (w dzień, po potwierdzeniu strzału) -->
+<audio id="peacemakerShotSound" src="peacemaker-shot.mp3" preload="auto"></audio>
+
+<!-- Rozjemca zastrzelił dobrą osobę i sam ginie (gra OBOK strzału) -->
+<audio id="peacemakerMistakeSound" src="peacemaker-mistake.mp3" preload="auto"></audio>
+
+<!-- Guślarz zaatakowany przez Mafię, ale PRZEŻYWA (jednorazowa odporność) -->
+<audio id="guslarSurviveSound" src="guslar-survive.mp3" preload="auto"></audio>
+
+<!-- Ktoś ginie w nocy od Mafii (na początku podsumowania nocy) -->
+<audio id="nightDeathSound" src="night-death.mp3" preload="auto"></audio>
+
+<!-- Medyk ratuje ofiarę Mafii (na początku podsumowania nocy) -->
+<audio id="medicSaveSound" src="medic-save.mp3" preload="auto"></audio>
+
+<!-- Gracz wygłosowany w dzień (gdy gra toczy się dalej) -->
+<audio id="votingDeathSound" src="vote-death.mp3" preload="auto"></audio>
+
+<!-- Koniec gry: wygrywa Mafia / wygrywa Miasto -->
+<audio id="mafiaWinSound" src="mafia-win.mp3" preload="auto"></audio>
+<audio id="townWinSound" src="town-win.mp3" preload="auto"></audio>
+
+<!-- Okienko komunikatu (nie blokuje strony, dzięki czemu dźwięk gra do końca) -->
+<div id="sfxModal">
+    <div id="sfxModalBox">
+        <div id="sfxModalText"></div>
+        <button id="sfxModalOk" type="button">OK</button>
+    </div>
+</div>
+
 <div class="app">
 
     <!-- ========================================= -->
@@ -368,7 +439,7 @@
         <!-- Wersja: html wpisana ręcznie, js dopisuje script.js.
              Przy zmianach zwiększ data-html-version oraz APP_VERSION
              w script.js. -->
-        <div id="versionInfo" data-html-version="1.4.2">html v1.4.2</div>
+        <div id="versionInfo" data-html-version="1.4.5">html v1.4.5</div>
 
         <!-- NOWOŚĆ: przełącznik trybu podstawowy / zaawansowany -->
 
