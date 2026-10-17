@@ -7,7 +7,7 @@
     // jeśli obie się różnią (lub brakuje którejś), to przeglądarka
     // albo git nie podmienił któregoś z plików.
 
-    const APP_VERSION = "1.3.1";
+    const APP_VERSION = "1.4.2";
 
     // =========================================
     // DOSTĘPNE ROLE
@@ -267,6 +267,202 @@
         return icon + " " + getRoleLabel(holder) + ": " + holder.name + " (" + status + ")";
 
     }
+
+    // =========================================
+    // MUZYKA NOCNA
+    // =========================================
+    // Muzyka gra w tle przez całą noc i wyłącza się, gdy nastaje dzień.
+    // Źródło dźwięku to element <audio id="nightMusic" src="..."> w
+    // index.html - żeby zmienić utwór, wystarczy podmienić "src" tam
+    // (albo wrzucić swój plik jako night.mp3 do folderu z grą).
+    // Muzyka startuje w startNight() i gra przez całą noc - także
+    // podczas podsumowania nocy (okna alert). Wyłącza się dopiero, gdy
+    // nastaje dzień (showDay()), oraz w showGameOver() / goBack().
+    //
+    // Osobny dźwięk początku dnia (pianie koguta) to element
+    // <audio id="dayStartSound" src="..."> - gra raz, zaraz po
+    // podsumowaniu nocy, gdy zaczyna się nowy dzień.
+
+    const nightAudio = document.getElementById("nightMusic");
+
+    const dayStartAudio = document.getElementById("dayStartSound");
+
+    let musicEnabled = true;
+    let musicVolume = 0.5;
+
+    try {
+
+        if (localStorage.getItem("mafiaMusicEnabled") === "0") {
+            musicEnabled = false;
+        }
+
+        const savedVolume =
+            parseFloat(localStorage.getItem("mafiaMusicVolume"));
+
+        if (!Number.isNaN(savedVolume)) {
+            musicVolume = Math.min(1, Math.max(0, savedVolume));
+        }
+
+    } catch (e) {
+        // localStorage niedostępny - zostają wartości domyślne
+    }
+
+    function playDayStartSound() {
+
+        if (!dayStartAudio || !musicEnabled) return;
+
+        dayStartAudio.currentTime = 0;
+
+        dayStartAudio.volume = musicVolume;
+
+        const playPromise = dayStartAudio.play();
+
+        if (playPromise && playPromise.catch) {
+
+            playPromise.catch(function (err) {
+
+                console.warn(
+                    "Nie udało się odtworzyć dźwięku początku dnia " +
+                    "(sprawdź czy plik z atrybutu src istnieje):",
+                    err
+                );
+
+            });
+
+        }
+
+    }
+
+    function startNightMusic() {
+
+        // Gdyby kogut jeszcze pianiał, gdy zaczyna się kolejna noc
+        if (dayStartAudio) {
+            dayStartAudio.pause();
+            dayStartAudio.currentTime = 0;
+        }
+
+        if (!nightAudio || !musicEnabled) return;
+
+        nightAudio.currentTime = 0;
+
+        nightAudio.volume = musicVolume;
+
+        const playPromise = nightAudio.play();
+
+        if (playPromise && playPromise.catch) {
+
+            playPromise.catch(function (err) {
+
+                console.warn(
+                    "Nie udało się odtworzyć muzyki nocnej " +
+                    "(sprawdź czy plik z atrybutu src istnieje):",
+                    err
+                );
+
+            });
+
+        }
+
+    }
+
+    function stopNightMusic() {
+
+        if (!nightAudio) return;
+
+        nightAudio.pause();
+
+        nightAudio.currentTime = 0;
+
+    }
+
+    function setMusicVolume(value) {
+
+        musicVolume = Math.min(1, Math.max(0, value));
+
+        if (nightAudio) {
+            nightAudio.volume = musicVolume;
+        }
+
+        if (dayStartAudio) {
+            dayStartAudio.volume = musicVolume;
+        }
+
+        try {
+            localStorage.setItem("mafiaMusicVolume", String(musicVolume));
+        } catch (e) { }
+
+    }
+
+    function toggleMusic() {
+
+        musicEnabled = !musicEnabled;
+
+        try {
+            localStorage.setItem(
+                "mafiaMusicEnabled",
+                musicEnabled ? "1" : "0"
+            );
+        } catch (e) { }
+
+        updateMusicToggleButton();
+
+        if (!musicEnabled) {
+
+            stopNightMusic();
+
+        } else if (game.phase === "night") {
+
+            // Włączenie w trakcie nocy - muzyka od razu wchodzi
+
+            startNightMusic();
+
+        }
+
+    }
+
+    function updateMusicToggleButton() {
+
+        const button = document.getElementById("musicToggle");
+
+        if (!button) return;
+
+        button.textContent = musicEnabled ? "🔊" : "🔇";
+
+        button.title =
+            musicEnabled
+                ? "Dźwięk (muzyka nocna i kogut): włączony"
+                : "Dźwięk (muzyka nocna i kogut): wyłączony";
+
+    }
+
+    (function initMusicControls() {
+
+        const toggle = document.getElementById("musicToggle");
+
+        const slider = document.getElementById("musicVolume");
+
+        if (nightAudio) {
+            nightAudio.volume = musicVolume;
+        }
+
+        if (toggle) {
+            toggle.addEventListener("click", toggleMusic);
+        }
+
+        if (slider) {
+
+            slider.value = Math.round(musicVolume * 100);
+
+            slider.addEventListener("input", function () {
+                setMusicVolume(parseInt(this.value) / 100);
+            });
+
+        }
+
+        updateMusicToggleButton();
+
+    })();
+
 
     // =========================================
     // TIMER DNIA
@@ -1444,6 +1640,8 @@
 
     function goBack() {
 
+        stopNightMusic();
+
         showScreen("mainScreen");
 
     }
@@ -1470,6 +1668,8 @@
     function showDay() {
 
         game.phase = "day";
+
+        stopNightMusic();
 
         document.getElementById(
             "phaseTitle"
@@ -1502,6 +1702,9 @@
         game.phase = "night";
 
         game.night++;
+
+        // NOWOŚĆ: muzyka nocna startuje razem z nocą
+        startNightMusic();
 
         // Czyścimy akcje poprzedniej nocy
         game.currentNight = {
@@ -3530,7 +3733,11 @@
 
         game.day++;
 
+        // Dzień nastaje: showDay() wyłącza muzykę nocną, a zaraz po
+        // tym rozbrzmiewa dźwięk początku dnia (pianie koguta).
         showDay();
+
+        playDayStartSound();
 
     }
 
@@ -3605,6 +3812,8 @@
 
     function showGameOver(title, message) {
 
+        stopNightMusic();
+
         // Ukrywamy wszystkie elementy rozgrywki
 
         document.getElementById(
@@ -3655,6 +3864,8 @@
     }
 
     function newGameWithSamePlayers() {
+
+        stopNightMusic();
 
         // Zachowujemy imiona
 
