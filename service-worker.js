@@ -1,4 +1,4 @@
-const CACHE_NAME = "mafiabykisol-v6";
+const CACHE_NAME = "mafiabykisol-v7";
 const APP_FILES = [
   "./",
   "./index.html",
