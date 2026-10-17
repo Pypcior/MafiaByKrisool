@@ -7,7 +7,7 @@
     // jeśli obie się różnią (lub brakuje którejś), to przeglądarka
     // albo git nie podmienił któregoś z plików.
 
-    const APP_VERSION = "1.4.2";
+    const APP_VERSION = "1.4.5";
 
     // =========================================
     // DOSTĘPNE ROLE
@@ -307,29 +307,133 @@
         // localStorage niedostępny - zostają wartości domyślne
     }
 
-    function playDayStartSound() {
+    // Odtwarza efekt dźwiękowy z elementu <audio id="..."> w index.html.
+    // Brak elementu lub brak pliku w "src" = po prostu cisza (w konsoli
+    // pojawia się tylko ostrzeżenie). Efekty respektują przycisk
+    // wyciszenia oraz suwak głośności.
 
-        if (!dayStartAudio || !musicEnabled) return;
+    function playSfx(elementId) {
 
-        dayStartAudio.currentTime = 0;
+        if (!musicEnabled) return;
 
-        dayStartAudio.volume = musicVolume;
+        const el = document.getElementById(elementId);
 
-        const playPromise = dayStartAudio.play();
+        if (!el) return;
+
+        el.currentTime = 0;
+
+        el.volume = musicVolume;
+
+        const playPromise = el.play();
 
         if (playPromise && playPromise.catch) {
 
             playPromise.catch(function (err) {
 
                 console.warn(
-                    "Nie udało się odtworzyć dźwięku początku dnia " +
-                    "(sprawdź czy plik z atrybutu src istnieje):",
+                    "Nie udało się odtworzyć dźwięku #" + elementId +
+                    " (sprawdź czy plik z atrybutu src istnieje):",
                     err
                 );
 
             });
 
         }
+
+    }
+
+    // Komunikat w stylu alert(), ale NIE blokujący strony: to zwykłe
+    // okienko HTML (#sfxModal). Natywny alert() zamraża całą stronę, a
+    // przeglądarka potrzebuje wtedy głównego wątku, żeby dociągać dane
+    // dźwięku - efekt grał więc ok. pół sekundy i milkł do zamknięcia
+    // okna. Przy własnym okienku dźwięk gra normalnie od początku do
+    // końca. Zwraca Promise, który kończy się po kliknięciu "OK".
+
+    function showModalAlert(message) {
+
+        return new Promise(function (resolve) {
+
+            const modal = document.getElementById("sfxModal");
+
+            const text = document.getElementById("sfxModalText");
+
+            const ok = document.getElementById("sfxModalOk");
+
+            // Awaryjnie, gdy okienka nie ma w HTML - zwykły alert()
+
+            if (!modal || !text || !ok) {
+
+                alert(message);
+
+                resolve();
+
+                return;
+
+            }
+
+            text.textContent = message;
+
+            modal.classList.add("open");
+
+            let closed = false;
+
+            const close = function () {
+
+                if (closed) return;
+
+                closed = true;
+
+                modal.classList.remove("open");
+
+                ok.removeEventListener("click", close);
+
+                document.removeEventListener("keydown", onKey);
+
+                resolve();
+
+            };
+
+            const onKey = function (e) {
+
+                if (
+                    e.key === "Enter" ||
+                    e.key === "Escape" ||
+                    e.key === " "
+                ) {
+
+                    e.preventDefault();
+
+                    close();
+
+                }
+
+            };
+
+            ok.addEventListener("click", close);
+
+            document.addEventListener("keydown", onKey);
+
+            ok.focus();
+
+        });
+
+    }
+
+    // Pokazuje komunikat z dźwiękiem, który gra W TRAKCIE komunikatu.
+    // Użycie: await alertWithSfx("idDzwieku", "treść");
+    // (bez await kod idzie dalej od razu, a okienko i tak się pokaże).
+
+    async function alertWithSfx(elementId, message) {
+
+        playSfx(elementId);
+
+        await showModalAlert(message);
+
+    }
+
+    function playDayStartSound() {
+
+        playSfx("dayStartSound");
 
     }
 
@@ -671,7 +775,7 @@
     }
 
 
-    function confirmPeacemakerAction() {
+    async function confirmPeacemakerAction() {
 
         const peacemaker =
             players.find(
@@ -776,9 +880,17 @@
             isGoodRole(target.role);
 
 
+        document.getElementById(
+            "peacemakerAction"
+        ).style.display = "none";
+
+
         // Jeżeli dobry → Rozjemca również umiera
 
         if (targetWasGood) {
+
+            // Dźwięk: pomyłka Rozjemcy (zabił dobrego, sam ginie)
+            playSfx("peacemakerMistakeSound");
 
             peacemaker.alive = false;
 
@@ -806,7 +918,8 @@
             });
 
 
-            alert(
+            // Dźwięk strzału gra już w trakcie komunikatu
+            await alertWithSfx("peacemakerShotSound",
 
                 "💥 Rozjemca " +
                 peacemaker.name +
@@ -823,7 +936,8 @@
 
         else {
 
-            alert(
+            // Dźwięk strzału gra już w trakcie komunikatu
+            await alertWithSfx("peacemakerShotSound",
 
                 "⚔️ Rozjemca zastrzelił " +
                 target.name +
@@ -835,11 +949,6 @@
             );
 
         }
-
-
-        document.getElementById(
-            "peacemakerAction"
-        ).style.display = "none";
 
 
         updateAliveCount();
@@ -998,6 +1107,9 @@
 
         if (target.role === "Błazen") {
 
+            // Dźwięk: zwycięstwo Błazna (także gdy wygrywa z Szarlatanką)
+            playSfx("jesterWinSound");
+
             // NOWOŚĆ: jeśli w grze jest Szarlatanka (żywa lub nie),
             // wygrywa razem z Błaznem.
 
@@ -1054,7 +1166,8 @@
         // NORMALNA ŚMIERĆ
         // =====================================
 
-        alert(
+        // Dźwięk: gracz wygłosowany - gra już w trakcie komunikatu
+        alertWithSfx("votingDeathSound",
 
             "☠️ " +
             target.name +
@@ -3462,7 +3575,7 @@
     // zabójstwa Mafii względem uzdrowienia Medyka, aktualizuje stan
     // graczy, sprawdza warunki zwycięstwa i przechodzi do kolejnego dnia.
 
-    function endNight() {
+    async function endNight() {
 
         const killTargetId = game.currentNight.mafia;
         const saveTargetId = game.currentNight.medic;
@@ -3486,6 +3599,9 @@
             if (victim) {
 
                 if (killTargetId === saveTargetId) {
+
+                    // Dźwięk: Medyk uratował ofiarę
+                    playSfx("medicSaveSound");
 
                     logNightEvent(
                         "🩺 " + victim.name + " został uratowany przez Medyka!"
@@ -3558,6 +3674,9 @@
 
                     });
 
+
+                    // Dźwięk: ktoś zginął tej nocy
+                    playSfx("nightDeathSound");
 
                     logNightEvent(
                         "☠️ Tej nocy zginął: " +
@@ -3694,7 +3813,8 @@
                     ? "Nikt nie odwiedził Guślarza przez całą rozgrywkę."
                     : uniqueVisitorNames.join("\n");
 
-            alert(
+            // Dźwięk: Guślarz przeżył atak - gra już w trakcie komunikatu
+            await alertWithSfx("guslarSurviveSound",
                 "⚠️ WSTRZYMAJ NOC ⚠️\n\n" +
                 "GUŚLARZ (" + guslarSurvivedThisNight.name + ") ZOSTAŁ ZAATAKOWANY " +
                 "PRZEZ MAFIĘ, ALE PRZEŻYŁ!\n\n" +
@@ -3785,6 +3905,8 @@
 
         if (aliveEvil.length === 0) {
 
+            playSfx("townWinSound");
+
             showGameOver(
                 "🏆 MIASTO WYGRYWA!",
                 "Cała zła drużyna (Mafia i jej sojusznicy) została wyeliminowana." + despairedNote
@@ -3795,6 +3917,8 @@
 
 
         if (aliveEvil.length >= aliveGood.length) {
+
+            playSfx("mafiaWinSound");
 
             showGameOver(
                 "🔫 MAFIA WYGRYWA!",
