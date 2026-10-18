@@ -281,6 +281,415 @@
             margin-top: 5px;
         }
 
+        /* Sterowanie muzyką nocną - prawy górny róg */
+        #musicControls {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 10px;
+            background: #1d1d1d;
+            border: 1px solid #333;
+            border-radius: 10px;
+            z-index: 20;
+        }
+
+        #musicControls button {
+            width: auto;
+            margin: 0;
+            padding: 4px 6px;
+            background: transparent;
+            font-size: 20px;
+            line-height: 1;
+        }
+
+        #musicControls button:hover {
+            background: #292929;
+        }
+
+        #musicControls input[type="range"] {
+            width: 90px;
+            padding: 0;
+            border: none;
+            background: transparent;
+            accent-color: #8b0000;
+        }
+
+        /* Okienko komunikatu (zamiast alert() przy komunikatach z dźwiękiem) */
+        #sfxModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        #sfxModal.open {
+            display: flex;
+        }
+
+        #sfxModalBox {
+            background: #1d1d1d;
+            border: 1px solid #444;
+            border-radius: 14px;
+            padding: 22px;
+            max-width: 460px;
+            width: 100%;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        #sfxModalText {
+            white-space: pre-wrap;
+            font-size: 17px;
+            line-height: 1.45;
+        }
+
+        /* Informacja o blokadzie Alkoholika na panelu zablokowanej osoby */
+        .blocked-notice {
+            display: none;
+            background: #3a1010;
+            border: 1px solid #8b0000;
+            color: #ff9a9a;
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 15px;
+        }
+
+        /* Ekran instrukcji */
+        #rulesScreen h1 {
+            font-size: 34px;
+        }
+
+        #rulesScreen h2 {
+            margin-top: 34px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #333;
+        }
+
+        #rulesScreen h3 {
+            margin: 22px 0 8px;
+            color: #ddd;
+        }
+
+        #rulesScreen p,
+        #rulesScreen li {
+            line-height: 1.5;
+            color: #ccc;
+        }
+
+        .rules-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+        }
+
+        .rules-table th,
+        .rules-table td {
+            border: 1px solid #333;
+            padding: 8px 12px;
+            text-align: center;
+        }
+
+        .rules-table th {
+            background: #1d1d1d;
+            color: #aaa;
+        }
+
+        .rules-note {
+            background: #1d1d1d;
+            border-left: 3px solid #8b0000;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin: 12px 0;
+        }
+
+        .role-card {
+            display: flex;
+            gap: 18px;
+            align-items: flex-start;
+            background: #1d1d1d;
+            border: 1px solid #333;
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 18px;
+        }
+
+        /* Karty mają proporcje 1024x1536 (2:3) - ramka zachowuje je
+           niezależnie od rozmiaru pliku. Kliknięcie powiększa kartę. */
+        .role-card-image {
+            flex: 0 0 170px;
+            width: 170px;
+            aspect-ratio: 2 / 3;
+            border: 2px dashed #444;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            overflow: hidden;
+            background: #151515;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+        }
+
+        .role-card-image:has(img) {
+            border: none;
+            cursor: zoom-in;
+        }
+
+        .role-card-image img + .card-placeholder {
+            display: none;
+        }
+
+        .role-card-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* Wąskie ekrany: karta na górze, wycentrowana, pod nią opis */
+        @media (max-width: 460px) {
+            .role-card {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .role-card-image {
+                flex: none;
+                width: min(240px, 72%);
+            }
+
+            .role-card-body {
+                width: 100%;
+            }
+        }
+
+        /* Powiększenie karty po kliknięciu */
+        #cardLightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.88);
+            z-index: 1100;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            cursor: zoom-out;
+        }
+
+        #cardLightbox.open {
+            display: flex;
+        }
+
+        #cardLightbox img {
+            max-width: 100%;
+            max-height: 100%;
+            aspect-ratio: 2 / 3;
+            object-fit: contain;
+            border-radius: 12px;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.8);
+        }
+
+        .role-card-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .role-card-body h3 {
+            margin: 0 0 4px;
+        }
+
+        .role-faction {
+            display: inline-block;
+            font-size: 12px;
+            padding: 2px 10px;
+            border-radius: 20px;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .faction-good { background: #12351c; color: #7ddf94; }
+        .faction-evil { background: #3a1010; color: #ff8a8a; }
+        .faction-neutral { background: #33301a; color: #e6d36a; }
+
+        .role-card-body p {
+            margin: 4px 0;
+            font-size: 14px;
+        }
+
+
+        /* Informacje o głosowaniu w panelu dnia i na szubienicy */
+        .voting-info {
+            background: #1d1d1d;
+            border-left: 3px solid #8b0000;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-bottom: 15px;
+            font-size: 15px;
+            color: #ccc;
+            line-height: 1.6;
+        }
+
+        .gallows-card {
+            background: #1d1d1d;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .gallows-name {
+            font-size: 26px;
+            font-weight: bold;
+        }
+
+        .gallows-role {
+            margin-top: 8px;
+            font-size: 18px;
+            color: #ffb020;
+        }
+
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+
+        /* Podsumowanie nocy: wynik (kto zginął) wyraźnie oddzielony
+           od przebiegu nocy krok po kroku */
+        #nightSummaryModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        #nightSummaryModal.open {
+            display: flex;
+        }
+
+        #nightSummaryBox {
+            background: #1d1d1d;
+            border: 1px solid #444;
+            border-radius: 14px;
+            padding: 20px;
+            max-width: 480px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .ns-title {
+            text-align: center;
+            font-size: 15px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #999;
+            margin-bottom: 12px;
+        }
+
+        .ns-result {
+            border-radius: 12px;
+            padding: 22px 16px;
+            text-align: center;
+            border: 2px solid;
+        }
+
+        .ns-result.tone-death {
+            background: #3a0000;
+            border-color: #b00000;
+        }
+
+        .ns-result.tone-safe {
+            background: #0f2a17;
+            border-color: #2e8b4a;
+        }
+
+        .ns-result.tone-neutral {
+            background: #262626;
+            border-color: #555;
+        }
+
+        .ns-result-label {
+            font-size: 13px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            opacity: 0.8;
+            margin-bottom: 6px;
+        }
+
+        .ns-result-main {
+            font-size: 28px;
+            font-weight: bold;
+            line-height: 1.25;
+        }
+
+        .tone-death .ns-result-main { color: #ff6060; }
+        .tone-safe .ns-result-main { color: #7ddf94; }
+
+        .ns-result-detail {
+            margin-top: 8px;
+            font-size: 17px;
+            color: #ddd;
+        }
+
+        .ns-divider {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 22px 0 12px;
+            color: #888;
+            font-size: 13px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .ns-divider::before,
+        .ns-divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #3a3a3a;
+        }
+
+        #nsSteps {
+            margin: 0;
+            padding-left: 26px;
+            color: #bbb;
+            font-size: 15px;
+            line-height: 1.45;
+        }
+
+        #nsSteps li {
+            margin-bottom: 8px;
+            padding-left: 4px;
+        }
+
+        .ns-extra {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border-left: 3px solid #ffb020;
+            background: #262212;
+            color: #e6d36a;
+            font-size: 14px;
+            border-radius: 6px;
+        }
+
         /* Wersja gry - prawy dolny róg ekranu głównego */
         #versionInfo {
             position: fixed;
@@ -301,6 +710,79 @@
 
 <body>
 
+<!-- Sterowanie muzyką nocną (włącz/wycisz + głośność) -->
+<div id="musicControls">
+    <button id="musicToggle" type="button" title="Muzyka nocna">🔊</button>
+    <input id="musicVolume" type="range" min="0" max="100" value="50" title="Głośność muzyki">
+</div>
+
+<!-- MUZYKA NOCNA: żeby zmienić utwór, podmień plik w "src" poniżej
+     (pliki dźwiękowe leżą w folderze "sfx" obok index.html) -->
+<audio id="nightMusic" src="sfx/night.mp3" loop preload="auto"></audio>
+
+<!-- DŹWIĘK POCZĄTKU DNIA (pianie koguta): gra raz, gdy po podsumowaniu
+     nocy zaczyna się nowy dzień. Podmień plik w "src" na własny. -->
+<audio id="dayStartSound" src="sfx/rooster.mp3" preload="auto"></audio>
+
+<!-- EFEKTY DŹWIĘKOWE
+     Każdy efekt to osobny <audio>. Żeby go użyć: wrzuć plik do folderu
+     "sfx" (obok index.html) i wpisz jego nazwę w "src", np. src="sfx/nazwa.mp3". Jeśli pliku nie ma (albo nie chcesz
+     danego dźwięku) - zostaw jak jest lub usuń linijkę, będzie po prostu cicho. -->
+
+<!-- Błazen wygrywa przez wygłosowanie (też razem z Szarlatanką) -->
+<audio id="jesterWinSound" src="sfx/jester-win.mp3" preload="auto"></audio>
+
+<!-- Rozjemca strzela (w dzień, po potwierdzeniu strzału) -->
+<audio id="peacemakerShotSound" src="sfx/peacemaker-shot.mp3" preload="auto"></audio>
+
+<!-- Rozjemca zastrzelił dobrą osobę i sam ginie (gra OBOK strzału) -->
+<audio id="peacemakerMistakeSound" src="sfx/peacemaker-mistake.mp3" preload="auto"></audio>
+
+<!-- Guślarz zaatakowany przez Mafię, ale PRZEŻYWA (jednorazowa odporność) -->
+<audio id="guslarSurviveSound" src="sfx/guslar-survive.mp3" preload="auto"></audio>
+
+<!-- Ktoś ginie w nocy od Mafii (na początku podsumowania nocy) -->
+<audio id="nightDeathSound" src="sfx/night-death.mp3" preload="auto"></audio>
+
+<!-- Medyk ratuje ofiarę Mafii (na początku podsumowania nocy) -->
+<audio id="medicSaveSound" src="sfx/medic-save.mp3" preload="auto"></audio>
+
+<!-- Gracz wygłosowany w dzień (gdy gra toczy się dalej) -->
+<audio id="votingDeathSound" src="sfx/vote-death.mp3" preload="auto"></audio>
+
+<!-- Koniec gry: wygrywa Mafia / wygrywa Miasto -->
+<audio id="mafiaWinSound" src="sfx/mafia-win.mp3" preload="auto"></audio>
+<audio id="townWinSound" src="sfx/town-win.mp3" preload="auto"></audio>
+
+<!-- Okienko komunikatu (nie blokuje strony, dzięki czemu dźwięk gra do końca) -->
+<div id="sfxModal">
+    <div id="sfxModalBox">
+        <div id="sfxModalText"></div>
+        <button id="sfxModalOk" type="button">OK</button>
+    </div>
+</div>
+
+<!-- Podsumowanie nocy (wynik + przebieg nocy) -->
+<div id="nightSummaryModal">
+    <div id="nightSummaryBox">
+        <div id="nsTitle" class="ns-title"></div>
+        <div id="nsResult" class="ns-result">
+            <div id="nsResultLabel" class="ns-result-label"></div>
+            <div id="nsResultMain" class="ns-result-main"></div>
+            <div id="nsResultDetail" class="ns-result-detail"></div>
+        </div>
+        <div id="nsStepsSection">
+            <div class="ns-divider">Przebieg nocy</div>
+            <ol id="nsSteps"></ol>
+        </div>
+        <div id="nsExtras"></div>
+        <button id="nsOk" type="button">OK</button>
+    </div>
+</div>
+
+<!-- Powiększona karta roli (klik w kartę w instrukcji) -->
+<div id="cardLightbox"><img id="cardLightboxImg" alt=""></div>
+
 <div class="app">
 
     <!-- ========================================= -->
@@ -318,7 +800,7 @@
         <!-- Wersja: html wpisana ręcznie, js dopisuje script.js.
              Przy zmianach zwiększ data-html-version oraz APP_VERSION
              w script.js. -->
-        <div id="versionInfo" data-html-version="1.3.1">html v1.3.1</div>
+        <div id="versionInfo" data-html-version="1.7.0">html v1.7.0</div>
 
         <!-- NOWOŚĆ: przełącznik trybu podstawowy / zaawansowany -->
 
@@ -400,6 +882,293 @@
              jeszcze zaimplementowana - przycisk celowo bez akcji -->
         <button class="secondary-button" disabled title="Funkcja niedostępna">
             Wczytaj rozgrywkę
+        </button>
+
+        <!-- NOWOŚĆ: instrukcja gry (zasady głosowania i opisy ról) -->
+        <button class="secondary-button" onclick="showScreen('rulesScreen')">
+            📖 Instrukcja gry
+        </button>
+
+    </div>
+
+
+
+    <!-- ========================================= -->
+    <!-- INSTRUKCJA GRY -->
+    <!-- ========================================= -->
+    <!-- Zdjęcia kart: wstaw pliki do folderu "karty" obok index.html,
+         nazwy: mafia.png, informator.png, falszerz.png, medyk.png,
+         alkoholik.png, szaman.png, rozjemca.png, wiesniak.png,
+         obserwator.png, guslarz.png, wieszcz.png, blazen.png,
+         szarlatanka.png. Gdy pliku brakuje, widać ramkę zastępczą. -->
+
+    <div id="rulesScreen" class="screen">
+
+        <h1>📖 Instrukcja</h1>
+
+        <h2>Zasady głosowania</h2>
+
+        <ol>
+            <li>Mistrz Gry decyduje, kiedy rozpocząć głosowanie - w momencie, gdy rozmowa graczy dobiega końca.</li>
+            <li>Na odliczanie <strong>3… 2… 1…</strong> każdy gracz wskazuje osobę, na którą głosuje, albo wstrzymuje się i nikogo nie wybiera.</li>
+            <li>Aby gracz stanął na szubienicy, musi mieć przewagę głosów graczy:
+                <table class="rules-table">
+                    <thead>
+                        <tr><th>Żywych</th><th>Potrzeba głosów</th></tr>
+                    </thead>
+                    <tbody>
+                    <tr><td>15</td><td>8</td></tr>
+                    <tr><td>14</td><td>8</td></tr>
+                    <tr><td>13</td><td>7</td></tr>
+                    <tr><td>12</td><td>7</td></tr>
+                    <tr><td>11</td><td>6</td></tr>
+                    <tr><td>10</td><td>6</td></tr>
+                    <tr><td>9</td><td>5</td></tr>
+                    <tr><td>8</td><td>5</td></tr>
+                    <tr><td>7</td><td>4</td></tr>
+                    <tr><td>6</td><td>4</td></tr>
+                    <tr><td>5</td><td>3</td></tr>
+                    <tr><td>4</td><td>3</td></tr>
+                    <tr><td>3</td><td>2</td></tr>
+                    <tr><td>2</td><td>2</td></tr>
+                    </tbody>
+                </table>
+            </li>
+            <li>Gracz na szubienicy ma chwilę, aby wytłumaczyć się, dlaczego nie powinien zostać powieszony.</li>
+            <li>Wszyscy gracze głosują kciukiem:
+                <table class="rules-table">
+                    <tbody>
+                        <tr><td>👍 kciuk w górę</td><td>niewinny</td></tr>
+                        <tr><td>👉 kciuk po środku</td><td>wstrzymanie od głosu</td></tr>
+                        <tr><td>👎 kciuk w dół</td><td>winny</td></tr>
+                    </tbody>
+                </table>
+                <div class="rules-note">
+                    Jeśli oskarżony ma <strong>więcej</strong> głosów „winny” - zostaje powieszony.<br>
+                    Jeśli ma <strong>tyle samo lub mniej</strong> głosów „winny” - przeżywa.
+                </div>
+            </li>
+            <li>W przypadku powieszenia i ukazania roli powieszonego od razu zaczyna się noc.</li>
+            <li>W przypadku uniewinnienia oskarżony wraca do rozgrywki i dzień trwa dalej.</li>
+        </ol>
+
+        <h3>Warunki zakończenia dnia i rozpoczęcia nocy</h3>
+
+        <p>Dzień kończy się, gdy spełniony zostanie którykolwiek z poniższych warunków:</p>
+
+        <ol type="a">
+            <li><strong>Limit osądzeń:</strong> maksymalnie 2 osoby mogą danego dnia stanąć na szubienicy. Jeśli obie zostaną uniewinnione, dzień kończy się i zaczyna się noc. Jeśli choć jedna zostanie skazana, dzień kończy się po jej egzekucji.</li>
+            <li><strong>Limit czasu:</strong> dzień trwa maksymalnie 12 minut. Po tym czasie dzień bezwzględnie się kończy i gracze przechodzą do nocy. Jeśli egzekucja już trwa, należy dokończyć procedurę osądzenia.</li>
+            <li><strong>Brak dalszych oskarżeń:</strong> jeśli rozmowa ucichnie i nikt nie zgłasza chęci głosowania, Mistrz Gry pyta, czy ktoś chce jeszcze kogoś oskarżyć. Jeśli przez 10 sekund nikt się nie zgłosi, dzień kończy się i zaczyna się noc.</li>
+        </ol>
+
+        <h2>Zasady ról</h2>
+
+        <p>Role neutralne nie należą do żadnej drużyny, ale liczą się jako gracze przy warunku zwycięstwa Mafii (Mafia wygrywa, gdy jest jej co najmniej tyle, ile wszystkich pozostałych żywych graczy).</p>
+
+        <div class="rules-note">
+            Kolejność nocy: Szarlatanka (tylko pierwsza noc) → Alkoholik → Medyk → Mafia → pomocnik Mafii (Informator albo Fałszerz) → Szaman → Wieszcz → Obserwator.
+        </div>
+
+            <div class="role-card">
+                <div class="role-card-image" data-card="mafia">
+                    <img loading="lazy" decoding="async" src="karty/mafia.png" alt="Mafia"
+                         onerror="this.remove()">
+                    <span class="card-placeholder">miejsce na zdjęcie<br>mafia.png</span>
+                </div>
+                <div class="role-card-body">
+                    <h3>Mafia</h3>
+                    <span class="role-faction faction-evil">Zła (Mafia)</span>
+                    <p>Co noc wybiera jedną osobę, która zostanie zabita. Nie może wybrać swoich sojuszników.</p>
+                    <p>Jeśli Mafia nie żyje, decyzję o zabójstwie podejmuje jej pomocnik - Informator albo Fałszerz (w jednej grze może być tylko jeden z nich).</p>
+                    <p>Może zostać zablokowana przez Alkoholika - wtedy tej nocy nikogo nie zabije.</p>
+                    <p><em>Tryb: Podstawowy i zaawansowany</em></p>
+                </div>
+            </div>
+
+            <div class="role-card">
+                <div class="role-card-image" data-card="informator">
+                    <img loading="lazy" decoding="async" src="karty/informator.png" alt="Informator"
+                         onerror="this.remove()">
+                    <span class="card-placeholder">miejsce na zdjęcie<br>informator.png</span>
+                </div>
+                <div class="role-card-body">
+                    <h3>Informator</h3>
+                    <span class="role-faction faction-evil">Zła (Mafia)</span>
+                    <p>Co noc sprawdza dokładną rolę wybranej osoby. Nie może wybrać Mafii, Fałszerza ani siebie.</p>
+                    <p>Gdy Mafia nie żyje, przejmuje zabijanie. Zablokowany przez Alkoholika nie dowiaduje się niczego.</p>
+                    <p><em>Tryb: Podstawowy i zaawansowany</em></p>
+                </div>
+            </div>
+
+            <div class="role-card">
+                <div class="role-card-image" data-card="falszerz">
+                    <img loading="lazy" decoding="async" src="karty/falszerz.png" alt="Fałszerz"
+                         onerror="this.remove()">
+                    <span class="card-placeholder">miejsce na zdjęcie<br>falszerz.png</span>
+                </div>
+                <div class="role-card-body">
+                    <h3>Fałszerz</h3>
+                    <span class="role-faction faction-evil">Zła (Mafia)</span>
+                    <p>Co noc wrabia jedną osobę: jej frakcja jest na tę noc odwrócona dla sprawdzeń Szamana i Wieszcza (dobra ↔ zła, neutralna jest widziana jako zła).</p>
+                    <p>Nie może wrobić siebie ani osoby, którą skutecznie wrobił poprzedniej nocy.</p>
+                    <p>Gdy Mafia i Informator nie żyją, przejmuje zabijanie.</p>
+                    <p><em>Tryb: Tylko zaawansowany</em></p>
+                </div>
+            </div>
+
+            <div class="role-card">
+                <div class="role-card-image" data-card="medyk">
+                    <img loading="lazy" decoding="async" src="karty/medyk.png" alt="Medyk"
+                         onerror="this.remove()">
+                    <span class="card-placeholder">miejsce na zdjęcie<br>medyk.png</span>
+                </div>
+                <div class="role-card-body">
+                    <h3>Medyk</h3>
+                    <span class="role-faction faction-good">Dobra (Miasto)</span>
+                    <p>Co noc wybiera jedną osobę, którą chroni przed zabiciem przez Mafię.</p>
+                    <p>Samego siebie może uratować tylko raz w całej grze. Zablokowany przez Alkoholika nikogo nie ochroni.</p>
+                    <p><em>Tryb: Podstawowy i zaawansowany</em></p>
+                </div>
+            </div>
+
+            <div class="role-card">
+                <div class="role-card-image" data-card="alkoholik">
+                    <img loading="lazy" decoding="async" src="karty/alkoholik.png" alt="Alkoholik"
+                         onerror="this.remove()">
+                    <span class="card-placeholder">miejsce na zdjęcie<br>alkoholik.png</span>
+                </div>
+                <div class="role-card-body">
+                    <h3>Alkoholik</h3>
+                    <span class="role-faction faction-good">Dobra (Miasto)</span>
+                    <p>Co noc blokuje jedną osobę - jej umiejętność nocna nie przynosi skutku. Blokada liczy się jak odwiedziny.</p>
+                    <p>Nie może zablokować siebie ani tej samej osoby dwie noce z rzędu. Działa jako pierwszy w nocy.</p>
+                    <p><em>Tryb: Podstawowy i zaawansowany</em></p>
+                </div>
+            </div>
+
+            <div class="role-card">
+                <div class="role-card-image" data-card="szaman">
+                    <img loading="lazy" decoding="async" src="karty/szaman.png" alt="Szaman"
+                         onerror="this.remove()">
+                    <span class="card-placeholder">miejsce na zdjęcie<br>szaman.png</span>
+                </div>
+                <div class="role-card-body">
+                    <h3>Szaman</h3>
+                    <span class="role-faction faction-good">Dobra (Miasto)</span>
+                    <p>Co noc sprawdza frakcję wybranej osoby i dowiaduje się, czy jest DOBRA, czy ZŁA / NEUTRALNA. Nie może sprawdzić siebie.</p>
+                    <p>Fałszerz może zafałszować wynik. Zablokowany przez Alkoholika nie dowiaduje się niczego.</p>
+                    <p><em>Tryb: Podstawowy i zaawansowany</em></p>
+                </div>
+            </div>
+
+            <div class="role-card">
+                <div class="role-card-image" data-card="rozjemca">
+                    <img loading="lazy" decoding="async" src="karty/rozjemca.png" alt="Rozjemca"
+                         onerror="this.remove()">
+                    <span class="card-placeholder">miejsce na zdjęcie<br>rozjemca.png</span>
+                </div>
+                <div class="role-card-body">
+                    <h3>Rozjemca</h3>
+                    <span class="role-faction faction-good">Dobra (Miasto)</span>
+                    <p>Raz w całej grze, w dzień, może publicznie zastrzelić wybraną osobę - jego rola zostaje wtedy ujawniona.</p>
+                    <p>Jeśli zastrzelona osoba należała do drużyny dobrej, Rozjemca także ginie.</p>
+                    <p><em>Tryb: Podstawowy i zaawansowany</em></p>
+                </div>
+            </div>
+
+            <div class="role-card">
+                <div class="role-card-image" data-card="wiesniak">
+                    <img loading="lazy" decoding="async" src="karty/wiesniak.png" alt="Wieśniak"
+                         onerror="this.remove()">
+                    <span class="card-placeholder">miejsce na zdjęcie<br>wiesniak.png</span>
+                </div>
+                <div class="role-card-body">
+                    <h3>Wieśniak</h3>
+                    <span class="role-faction faction-good">Dobra (Miasto)</span>
+                    <p>Nie ma żadnej umiejętności. Jego bronią jest rozmowa i głosowanie.</p>
+                    <p><em>Tryb: Podstawowy i zaawansowany</em></p>
+                </div>
+            </div>
+
+            <div class="role-card">
+                <div class="role-card-image" data-card="obserwator">
+                    <img loading="lazy" decoding="async" src="karty/obserwator.png" alt="Obserwator"
+                         onerror="this.remove()">
+                    <span class="card-placeholder">miejsce na zdjęcie<br>obserwator.png</span>
+                </div>
+                <div class="role-card-body">
+                    <h3>Obserwator</h3>
+                    <span class="role-faction faction-good">Dobra (Miasto)</span>
+                    <p>Co noc wybiera osobę (także siebie) i dowiaduje się, kto ją tej nocy odwiedził. Działa jako ostatni.</p>
+                    <p>Odwiedziny Alkoholika (blokada) również są widoczne. Zablokowany przez Alkoholika nie dowiaduje się niczego.</p>
+                    <p><em>Tryb: Tylko zaawansowany</em></p>
+                </div>
+            </div>
+
+            <div class="role-card">
+                <div class="role-card-image" data-card="guslarz">
+                    <img loading="lazy" decoding="async" src="karty/guslarz.png" alt="Guślarz"
+                         onerror="this.remove()">
+                    <span class="card-placeholder">miejsce na zdjęcie<br>guslarz.png</span>
+                </div>
+                <div class="role-card-body">
+                    <h3>Guślarz</h3>
+                    <span class="role-faction faction-good">Dobra (Miasto)</span>
+                    <p>Przeżywa pierwszy atak Mafii (jednorazowa odporność). Wtedy Mistrz Gry mówi mu, kto go odwiedzał przez całą grę.</p>
+                    <p>Przy drugim ataku Mafii ginie.</p>
+                    <p><em>Tryb: Tylko zaawansowany</em></p>
+                </div>
+            </div>
+
+            <div class="role-card">
+                <div class="role-card-image" data-card="wieszcz">
+                    <img loading="lazy" decoding="async" src="karty/wieszcz.png" alt="Wieszcz"
+                         onerror="this.remove()">
+                    <span class="card-placeholder">miejsce na zdjęcie<br>wieszcz.png</span>
+                </div>
+                <div class="role-card-body">
+                    <h3>Wieszcz</h3>
+                    <span class="role-faction faction-good">Dobra (Miasto)</span>
+                    <p>Co noc wybiera dwie różne osoby i dowiaduje się, czy należą do tej samej frakcji (TAK / NIE). Nie może wybrać siebie.</p>
+                    <p>Fałszerz może zafałszować wynik. Zablokowany przez Alkoholika nie dowiaduje się niczego.</p>
+                    <p><em>Tryb: Tylko zaawansowany</em></p>
+                </div>
+            </div>
+
+            <div class="role-card">
+                <div class="role-card-image" data-card="blazen">
+                    <img loading="lazy" decoding="async" src="karty/blazen.png" alt="Błazen"
+                         onerror="this.remove()">
+                    <span class="card-placeholder">miejsce na zdjęcie<br>blazen.png</span>
+                </div>
+                <div class="role-card-body">
+                    <h3>Błazen</h3>
+                    <span class="role-faction faction-neutral">Neutralna</span>
+                    <p>Nie należy ani do Miasta, ani do Mafii. Wygrywa, jeśli zostanie powieszony w głosowaniu.</p>
+                    <p>Nie liczy się do żadnej drużyny, ale liczy się jako gracz przy warunku zwycięstwa Mafii. Jeśli Fałszerz go wrobi, na tę noc jest widziany jako zły.</p>
+                    <p><em>Tryb: Podstawowy i zaawansowany</em></p>
+                </div>
+            </div>
+
+            <div class="role-card">
+                <div class="role-card-image" data-card="szarlatanka">
+                    <img loading="lazy" decoding="async" src="karty/szarlatanka.png" alt="Szarlatanka"
+                         onerror="this.remove()">
+                    <span class="card-placeholder">miejsce na zdjęcie<br>szarlatanka.png</span>
+                </div>
+                <div class="role-card-body">
+                    <h3>Szarlatanka</h3>
+                    <span class="role-faction faction-neutral">Neutralna</span>
+                    <p>W grze występuje tylko razem z Błaznem i nie wie, kto nim jest. Wygrywa razem z Błaznem, gdy ten zostanie powieszony.</p>
+                    <p>Na początku pierwszej nocy (jednorazowo) Mistrz Gry pokazuje jej karty ról, których nie ma w tej rozgrywce. Nie wykonuje akcji, więc nie można jej zablokować.</p>
+                    <p>Jeśli Błazen zginie od Mafii w nocy albo zostanie zastrzelony przez Rozjemcę, a ona żyje, staje się ROZPACZONĄ SZARLATANKĄ: jej jedyny cel to przeżyć do końca gry (wtedy wygrywa razem ze zwycięzcą).</p>
+                    <p><em>Tryb: Tylko zaawansowany</em></p>
+                </div>
+            </div>
+
+        <button class="back-button" onclick="goBack()">
+            Wróć do menu
         </button>
 
     </div>
@@ -500,11 +1269,19 @@
                 Co wydarzyło się tego dnia?
             </div>
 
+            <!-- Licznik głosowań dnia oraz próg głosów potrzebnych do
+                 wstawienia kogoś na szubienicę (wypełnia JavaScript:
+                 updateDayVotingInfo) -->
+            <div id="dayVotingInfo" class="voting-info">
+                <div id="dayVotingsLeft"></div>
+                <div id="dayVotesNeeded"></div>
+            </div>
+
             <button onclick="startPeacemakerAction()">
                 ⚔️ Rozjemca
             </button>
 
-            <button onclick="startVoting()">
+            <button id="startVotingBtn" onclick="startVoting()">
                 ⚖️ Głosowanie
             </button>
 
@@ -552,27 +1329,56 @@
 
         <div id="votingAction" style="display: none;">
 
-            <h2>⚖️ Głosowanie</h2>
+            <h2>⚖️ Kto wchodzi na szubienicę?</h2>
 
-            <div class="game-info">
-                Wybierz gracza, który został wygłosowany.
+            <div id="votingNeededInfo" class="game-info">
             </div>
 
             <label for="votingTarget">
-                Wygłosowany gracz:
+                Gracz na szubienicy:
             </label>
 
             <select id="votingTarget">
             </select>
 
-            <button onclick="confirmVoting()">
-                Zatwierdź wygłosowanie
+            <button onclick="openGallows()">
+                Wstaw na szubienicę
             </button>
 
             <button
                 class="back-button"
                 onclick="cancelVoting()">
                 Anuluj
+            </button>
+
+        </div>
+
+
+        <!-- ========================================= -->
+        <!-- SZUBIENICA (wyrok: winny / niewinny) -->
+        <!-- ========================================= -->
+
+        <div id="gallowsAction" style="display: none;">
+
+            <h2>⚖️ Na szubienicy</h2>
+
+            <div class="gallows-card">
+                <div id="gallowsName" class="gallows-name"></div>
+                <div id="gallowsRole" class="gallows-role"></div>
+            </div>
+
+            <button onclick="confirmGuilty()">
+                👎 Winny
+            </button>
+
+            <button class="secondary-button" onclick="confirmInnocent()">
+                👍 Niewinny
+            </button>
+
+            <button
+                class="back-button"
+                onclick="backFromGallows()">
+                Wróć
             </button>
 
         </div>
@@ -618,7 +1424,7 @@
                 <div id="szarlatankaInfo" class="game-info">
                 </div>
 
-                <div class="game-info">
+                <div id="szarlatankaDescription" class="game-info">
                     Pokaż Szarlatance karty poniższych postaci - tych
                     ról nie ma w tej rozgrywce. Dzieje się to tylko
                     raz, na początku pierwszej nocy.
@@ -690,38 +1496,6 @@
 
             </div>
 
-            <!-- FAŁSZERZ -->
-            <!-- NOWOŚĆ: rola Mafii. Wskazuje osobę, której frakcja
-                 jest odwrócona TYLKO tej nocy - wpływa to na wyniki
-                 Szamana i Wieszcza. Nie może wrobić tej samej osoby
-                 dwa razy pod rząd. -->
-
-            <div id="falszerzAction" style="display: none;">
-
-                <h2>🃏 Fałszerz</h2>
-
-                <div id="falszerzInfo" class="game-info">
-                </div>
-
-                <div class="game-info">
-                    Wybierz osobę, którą Fałszerz wrobi tej nocy
-                    (jej frakcja zostanie odwrócona tylko na tę noc).
-                </div>
-
-                <label for="falszerzTarget">
-                    Cel:
-                </label>
-
-                <select id="falszerzTarget">
-                    <!-- Gracze zostaną dodani przez JavaScript -->
-                </select>
-
-                <button onclick="confirmFalszerzAction()">
-                    Zatwierdź wybór
-                </button>
-
-            </div>
-
             <!-- SZAMAN -->
 
             <div id="shamanAction" style="display: none;">
@@ -774,33 +1548,34 @@
 
             </div>
 
-            <!-- INFORMATOR -->
-            <!-- NOWOŚĆ: Informator działa na rzecz Mafii. Póki żyje
-                 główna Mafia, w nocy sprawdza dokładną rolę wskazanej
-                 osoby. Gdy główna Mafia zginie, Informator przejmuje
-                 jej zdolność zabijania (panel Mafii jest wtedy
-                 pomijany). -->
+            <!-- POMOCNIK MAFII: INFORMATOR LUB FAŁSZERZ -->
+            <!-- NOWOŚĆ: wspólny panel. W jednej grze może być tylko
+                 jedna z tych ról: Informator sprawdza dokładną rolę
+                 wskazanej osoby, Fałszerz wrabia wskazaną osobę (jej
+                 frakcja jest odwrócona tylko tej nocy - wpływa to na
+                 wyniki Szamana i Wieszcza; nie może wrobić tej samej
+                 osoby dwa razy pod rząd). Tekst i lista celów są
+                 ustawiane przez JavaScript (startHelperAction). -->
 
-            <div id="informatorAction" style="display: none;">
+            <div id="helperAction" style="display: none;">
 
-                <h2>🕵️ Informator</h2>
+                <h2>🕵️🃏 Budzi się pomocnik Mafii: Informator lub Fałszerz</h2>
 
-                <div id="informatorInfo" class="game-info">
+                <div id="helperInfo" class="game-info">
                 </div>
 
-                <div id="informatorModeLabel" class="game-info">
-                    Wybierz osobę, której dokładną rolę chcesz poznać.
+                <div id="helperModeLabel" class="game-info">
                 </div>
 
-                <label for="informatorTarget">
+                <label for="helperTarget">
                     Cel:
                 </label>
 
-                <select id="informatorTarget">
+                <select id="helperTarget">
                     <!-- Gracze zostaną dodani przez JavaScript -->
                 </select>
 
-                <button onclick="confirmInformatorAction()">
+                <button onclick="confirmHelperAction()">
                     Zatwierdź wybór
                 </button>
 
