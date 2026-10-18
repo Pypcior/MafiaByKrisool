@@ -7,7 +7,7 @@
     // jeśli obie się różnią (lub brakuje którejś), to przeglądarka
     // albo git nie podmienił któregoś z plików.
 
-    const APP_VERSION = "1.7.0";
+    const APP_VERSION = "1.8.0";
 
     // =========================================
     // DOSTĘPNE ROLE
@@ -577,14 +577,24 @@
     // Maksymalna liczba osądzeń (wejść na szubienicę) w jednym dniu.
     const MAX_DAY_VOTINGS = 2;
 
-    // Tabela: żywych -> potrzebnych głosów (przewaga głosów graczy):
-    // 15:8, 14:8, 13:7, 12:7, 11:6, 10:6, 9:5, 8:5, 7:4, 6:4,
-    // 5:3, 4:3, 3:2, 2:2. Wzór: połowa żywych (w dół) + 1.
+    // Tabela: żywych -> potrzebnych głosów do wstawienia na szubienicę.
+    const VOTES_NEEDED_TABLE = {
+        15: 7, 14: 6, 13: 6, 12: 5, 11: 5, 10: 4, 9: 4,
+        8: 3, 7: 3, 6: 2, 5: 2, 4: 2, 3: 1, 2: 1
+    };
+
     function getVotesNeeded(aliveCount) {
 
         if (aliveCount < 1) return 0;
 
-        return Math.floor(aliveCount / 2) + 1;
+        if (aliveCount <= 2) return 1;
+
+        if (VOTES_NEEDED_TABLE[aliveCount] !== undefined) {
+            return VOTES_NEEDED_TABLE[aliveCount];
+        }
+
+        // Powyżej tabeli (16+ żywych): ta sama zasada co w jej górnej części
+        return Math.floor((aliveCount - 1) / 2);
 
     }
 
