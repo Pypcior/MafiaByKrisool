@@ -7,7 +7,7 @@
     // jeśli obie się różnią (lub brakuje którejś), to przeglądarka
     // albo git nie podmienił któregoś z plików.
 
-    const APP_VERSION = "1.3.1";
+    const APP_VERSION = "1.7.0";
 
     // =========================================
     // DOSTĘPNE ROLE
@@ -121,6 +121,9 @@
 
         dayStartedAt: null,
         dayTimerInterval: null,
+
+        // Ile głosowań (wejść na szubienicę) zostało w tym dniu
+        votingsLeft: 2,
 
         previousAlcoholicTarget: null,
 
@@ -269,6 +272,529 @@
     }
 
     // =========================================
+    // MUZYKA NOCNA
+    // =========================================
+    // Muzyka gra w tle przez całą noc i wyłącza się, gdy nastaje dzień.
+    // Źródło dźwięku to element <audio id="nightMusic" src="..."> w
+    // index.html - żeby zmienić utwór, wystarczy podmienić "src" tam
+    // (albo wrzucić swój plik jako night.mp3 do folderu "sfx").
+    // Muzyka startuje w startNight() i gra przez całą noc - także
+    // podczas podsumowania nocy (okna alert). Wyłącza się dopiero, gdy
+    // nastaje dzień (showDay()), oraz w showGameOver() / goBack().
+    //
+    // Osobny dźwięk początku dnia (pianie koguta) to element
+    // <audio id="dayStartSound" src="..."> - gra raz, zaraz po
+    // podsumowaniu nocy, gdy zaczyna się nowy dzień.
+
+    const nightAudio = document.getElementById("nightMusic");
+
+    const dayStartAudio = document.getElementById("dayStartSound");
+
+    let musicEnabled = true;
+    let musicVolume = 0.5;
+
+    try {
+
+        if (localStorage.getItem("mafiaMusicEnabled") === "0") {
+            musicEnabled = false;
+        }
+
+        const savedVolume =
+            parseFloat(localStorage.getItem("mafiaMusicVolume"));
+
+        if (!Number.isNaN(savedVolume)) {
+            musicVolume = Math.min(1, Math.max(0, savedVolume));
+        }
+
+    } catch (e) {
+        // localStorage niedostępny - zostają wartości domyślne
+    }
+
+    // Odtwarza efekt dźwiękowy z elementu <audio id="..."> w index.html.
+    // Brak elementu lub brak pliku w "src" = po prostu cisza (w konsoli
+    // pojawia się tylko ostrzeżenie). Efekty respektują przycisk
+    // wyciszenia oraz suwak głośności.
+
+    function playSfx(elementId) {
+
+        if (!musicEnabled) return;
+
+        const el = document.getElementById(elementId);
+
+        if (!el) return;
+
+        el.currentTime = 0;
+
+        el.volume = musicVolume;
+
+        const playPromise = el.play();
+
+        if (playPromise && playPromise.catch) {
+
+            playPromise.catch(function (err) {
+
+                console.warn(
+                    "Nie udało się odtworzyć dźwięku #" + elementId +
+                    " (sprawdź czy plik z atrybutu src istnieje):",
+                    err
+                );
+
+            });
+
+        }
+
+    }
+
+    // Komunikat w stylu alert(), ale NIE blokujący strony: to zwykłe
+    // okienko HTML (#sfxModal). Natywny alert() zamraża całą stronę, a
+    // przeglądarka potrzebuje wtedy głównego wątku, żeby dociągać dane
+    // dźwięku - efekt grał więc ok. pół sekundy i milkł do zamknięcia
+    // okna. Przy własnym okienku dźwięk gra normalnie od początku do
+    // końca. Zwraca Promise, który kończy się po kliknięciu "OK".
+
+    function showModalAlert(message) {
+
+        return new Promise(function (resolve) {
+
+            const modal = document.getElementById("sfxModal");
+
+            const text = document.getElementById("sfxModalText");
+
+            const ok = document.getElementById("sfxModalOk");
+
+            // Awaryjnie, gdy okienka nie ma w HTML - zwykły alert()
+
+            if (!modal || !text || !ok) {
+
+                alert(message);
+
+                resolve();
+
+                return;
+
+            }
+
+            text.textContent = message;
+
+            modal.classList.add("open");
+
+            let closed = false;
+
+            const close = function () {
+
+                if (closed) return;
+
+                closed = true;
+
+                modal.classList.remove("open");
+
+                ok.removeEventListener("click", close);
+
+                document.removeEventListener("keydown", onKey);
+
+                resolve();
+
+            };
+
+            const onKey = function (e) {
+
+                if (
+                    e.key === "Enter" ||
+                    e.key === "Escape" ||
+                    e.key === " "
+                ) {
+
+                    e.preventDefault();
+
+                    close();
+
+                }
+
+            };
+
+            ok.addEventListener("click", close);
+
+            document.addEventListener("keydown", onKey);
+
+            ok.focus();
+
+        });
+
+    }
+
+    // Pokazuje komunikat z dźwiękiem, który gra W TRAKCIE komunikatu.
+    // Użycie: await alertWithSfx("idDzwieku", "treść");
+    // (bez await kod idzie dalej od razu, a okienko i tak się pokaże).
+
+    async function alertWithSfx(elementId, message) {
+
+        playSfx(elementId);
+
+        await showModalAlert(message);
+
+    }
+
+    function playDayStartSound() {
+
+        playSfx("dayStartSound");
+
+    }
+
+    function startNightMusic() {
+
+        // Gdyby kogut jeszcze pianiał, gdy zaczyna się kolejna noc
+        if (dayStartAudio) {
+            dayStartAudio.pause();
+            dayStartAudio.currentTime = 0;
+        }
+
+        if (!nightAudio || !musicEnabled) return;
+
+        nightAudio.currentTime = 0;
+
+        nightAudio.volume = musicVolume;
+
+        const playPromise = nightAudio.play();
+
+        if (playPromise && playPromise.catch) {
+
+            playPromise.catch(function (err) {
+
+                console.warn(
+                    "Nie udało się odtworzyć muzyki nocnej " +
+                    "(sprawdź czy plik z atrybutu src istnieje):",
+                    err
+                );
+
+            });
+
+        }
+
+    }
+
+    function stopNightMusic() {
+
+        if (!nightAudio) return;
+
+        nightAudio.pause();
+
+        nightAudio.currentTime = 0;
+
+    }
+
+    function setMusicVolume(value) {
+
+        musicVolume = Math.min(1, Math.max(0, value));
+
+        if (nightAudio) {
+            nightAudio.volume = musicVolume;
+        }
+
+        if (dayStartAudio) {
+            dayStartAudio.volume = musicVolume;
+        }
+
+        try {
+            localStorage.setItem("mafiaMusicVolume", String(musicVolume));
+        } catch (e) { }
+
+    }
+
+    function toggleMusic() {
+
+        musicEnabled = !musicEnabled;
+
+        try {
+            localStorage.setItem(
+                "mafiaMusicEnabled",
+                musicEnabled ? "1" : "0"
+            );
+        } catch (e) { }
+
+        updateMusicToggleButton();
+
+        if (!musicEnabled) {
+
+            stopNightMusic();
+
+        } else if (game.phase === "night") {
+
+            // Włączenie w trakcie nocy - muzyka od razu wchodzi
+
+            startNightMusic();
+
+        }
+
+    }
+
+    function updateMusicToggleButton() {
+
+        const button = document.getElementById("musicToggle");
+
+        if (!button) return;
+
+        button.textContent = musicEnabled ? "🔊" : "🔇";
+
+        button.title =
+            musicEnabled
+                ? "Dźwięk (muzyka nocna i kogut): włączony"
+                : "Dźwięk (muzyka nocna i kogut): wyłączony";
+
+    }
+
+    (function initMusicControls() {
+
+        const toggle = document.getElementById("musicToggle");
+
+        const slider = document.getElementById("musicVolume");
+
+        if (nightAudio) {
+            nightAudio.volume = musicVolume;
+        }
+
+        if (toggle) {
+            toggle.addEventListener("click", toggleMusic);
+        }
+
+        if (slider) {
+
+            slider.value = Math.round(musicVolume * 100);
+
+            slider.addEventListener("input", function () {
+                setMusicVolume(parseInt(this.value) / 100);
+            });
+
+        }
+
+        updateMusicToggleButton();
+
+    })();
+
+
+    // =========================================
+    // SZUBIENICA - ZASADY
+    // =========================================
+    // Maksymalna liczba osądzeń (wejść na szubienicę) w jednym dniu.
+    const MAX_DAY_VOTINGS = 2;
+
+    // Tabela: żywych -> potrzebnych głosów (przewaga głosów graczy):
+    // 15:8, 14:8, 13:7, 12:7, 11:6, 10:6, 9:5, 8:5, 7:4, 6:4,
+    // 5:3, 4:3, 3:2, 2:2. Wzór: połowa żywych (w dół) + 1.
+    function getVotesNeeded(aliveCount) {
+
+        if (aliveCount < 1) return 0;
+
+        return Math.floor(aliveCount / 2) + 1;
+
+    }
+
+    // Id gracza aktualnie stojącego na szubienicy
+    let gallowsTargetId = null;
+
+    function updateDayVotingInfo() {
+
+        const leftEl = document.getElementById("dayVotingsLeft");
+        const neededEl = document.getElementById("dayVotesNeeded");
+        const btn = document.getElementById("startVotingBtn");
+
+        if (!leftEl || !neededEl) return;
+
+        const alive = players.filter(p => p.alive).length;
+        const needed = getVotesNeeded(alive);
+        const left = Math.max(0, game.votingsLeft);
+
+        leftEl.textContent =
+            "⚖️ Możliwe głosowania tego dnia: " +
+            left + "/" + MAX_DAY_VOTINGS;
+
+        neededEl.textContent =
+            "🗳️ Głosów potrzebnych, by wstawić kogoś na szubienicę: " +
+            needed + " (żywych: " + alive + ")";
+
+        if (btn) {
+            btn.disabled = left <= 0;
+        }
+
+        const votingNeeded = document.getElementById("votingNeededInfo");
+
+        if (votingNeeded) {
+            votingNeeded.textContent =
+                "Potrzeba głosów: " + needed + " (żywych: " + alive + ")";
+        }
+
+    }
+
+    // =========================================
+    // PODSUMOWANIE NOCY (OKNO)
+    // =========================================
+    // Na górze wielki, kolorowy WYNIK nocy (kto zginął / kto został
+    // uratowany), pod kreską "Przebieg nocy" - wydarzenia po kolei.
+    // Nie blokuje strony (jak showModalAlert), więc dźwięki grają.
+    // result: { tone: "death" | "safe" | "neutral", label, main, detail }
+
+    function showNightSummary(nightNumber, result, steps, extras) {
+
+        return new Promise(function (resolve) {
+
+            const modal = document.getElementById("nightSummaryModal");
+            const ok = document.getElementById("nsOk");
+
+            if (!modal || !ok) {
+
+                alert(
+                    "Noc " + nightNumber + ": " + result.main +
+                    "\n\n" + steps.join("\n")
+                );
+
+                resolve();
+
+                return;
+
+            }
+
+            document.getElementById("nsTitle").textContent =
+                "🌙 Podsumowanie nocy " + nightNumber;
+
+            document.getElementById("nsResult").className =
+                "ns-result tone-" + result.tone;
+
+            document.getElementById("nsResultLabel").textContent =
+                result.label;
+
+            document.getElementById("nsResultMain").textContent =
+                result.main;
+
+            document.getElementById("nsResultDetail").textContent =
+                result.detail || "";
+
+            const list = document.getElementById("nsSteps");
+
+            list.innerHTML = "";
+
+            steps.forEach(function (text) {
+
+                const li = document.createElement("li");
+
+                li.textContent = text;
+
+                list.appendChild(li);
+
+            });
+
+            document.getElementById("nsStepsSection").style.display =
+                steps.length ? "block" : "none";
+
+            const extrasBox = document.getElementById("nsExtras");
+
+            extrasBox.innerHTML = "";
+
+            extras.forEach(function (text) {
+
+                const div = document.createElement("div");
+
+                div.className = "ns-extra";
+
+                div.textContent = text;
+
+                extrasBox.appendChild(div);
+
+            });
+
+            modal.classList.add("open");
+
+            document.getElementById("nightSummaryBox").scrollTop = 0;
+
+            let closed = false;
+
+            const close = function () {
+
+                if (closed) return;
+
+                closed = true;
+
+                modal.classList.remove("open");
+
+                ok.removeEventListener("click", close);
+
+                document.removeEventListener("keydown", onKey);
+
+                resolve();
+
+            };
+
+            const onKey = function (e) {
+
+                if (e.key === "Enter" || e.key === "Escape") {
+
+                    e.preventDefault();
+
+                    close();
+
+                }
+
+            };
+
+            ok.addEventListener("click", close);
+
+            document.addEventListener("keydown", onKey);
+
+            ok.focus();
+
+        });
+
+    }
+
+    // =========================================
+    // KARTY W INSTRUKCJI - POWIĘKSZENIE PO KLIKNIĘCIU
+    // =========================================
+
+    (function initCardLightbox() {
+
+        const box = document.getElementById("cardLightbox");
+        const img = document.getElementById("cardLightboxImg");
+
+        if (!box || !img) return;
+
+        document.addEventListener("click", function (e) {
+
+            const cardImg = e.target.closest
+                ? e.target.closest(".role-card-image img")
+                : null;
+
+            if (cardImg) {
+
+                img.src = cardImg.src;
+
+                img.alt = cardImg.alt || "";
+
+                box.classList.add("open");
+
+                return;
+
+            }
+
+            if (box.classList.contains("open")) {
+
+                box.classList.remove("open");
+
+            }
+
+        });
+
+        document.addEventListener("keydown", function (e) {
+
+            if (e.key === "Escape") {
+
+                box.classList.remove("open");
+
+            }
+
+        });
+
+    })();
+
+
+    // =========================================
     // TIMER DNIA
     // =========================================
 
@@ -323,6 +849,18 @@
     // =========================================
 
     function startVoting() {
+
+        if (game.votingsLeft <= 0) {
+
+            alert(
+                "Limit głosowań w tym dniu został wykorzystany. " +
+                "Rozpocznij noc."
+            );
+
+            return;
+        }
+
+        updateDayVotingInfo();
 
         document.getElementById("dayActions").style.display = "none";
 
@@ -475,7 +1013,7 @@
     }
 
 
-    function confirmPeacemakerAction() {
+    async function confirmPeacemakerAction() {
 
         const peacemaker =
             players.find(
@@ -580,9 +1118,17 @@
             isGoodRole(target.role);
 
 
+        document.getElementById(
+            "peacemakerAction"
+        ).style.display = "none";
+
+
         // Jeżeli dobry → Rozjemca również umiera
 
         if (targetWasGood) {
+
+            // Dźwięk: pomyłka Rozjemcy (zabił dobrego, sam ginie)
+            playSfx("peacemakerMistakeSound");
 
             peacemaker.alive = false;
 
@@ -610,7 +1156,8 @@
             });
 
 
-            alert(
+            // Dźwięk strzału gra już w trakcie komunikatu
+            await alertWithSfx("peacemakerShotSound",
 
                 "💥 Rozjemca " +
                 peacemaker.name +
@@ -627,7 +1174,8 @@
 
         else {
 
-            alert(
+            // Dźwięk strzału gra już w trakcie komunikatu
+            await alertWithSfx("peacemakerShotSound",
 
                 "⚔️ Rozjemca zastrzelił " +
                 target.name +
@@ -639,11 +1187,6 @@
             );
 
         }
-
-
-        document.getElementById(
-            "peacemakerAction"
-        ).style.display = "none";
 
 
         updateAliveCount();
@@ -716,21 +1259,21 @@
     // GŁOSOWANIE - POTWIERDZENIE
     // =========================================
 
-    function confirmVoting() {
+    // Krok 1: Mistrz Gry wybiera, kto wchodzi na szubienicę.
+    // Pokazujemy imię, rolę i przyciski wyroku.
+
+    function openGallows() {
 
         const select =
             document.getElementById("votingTarget");
 
-
         const targetId =
             parseInt(select.value);
-
 
         const target =
             players.find(
                 player => player.id === targetId
             );
-
 
         if (!target) {
 
@@ -740,22 +1283,70 @@
 
         }
 
+        gallowsTargetId = target.id;
 
-        // =====================================
-        // POTWIERDZENIE
-        // =====================================
+        document.getElementById("gallowsName").textContent =
+            target.name;
 
-        const confirmed =
-            confirm(
-                "Czy na pewno " +
-                target.name +
-                " został wygłosowany?"
+        document.getElementById("gallowsRole").textContent =
+            "Rola: " + getRoleLabel(target);
+
+        document.getElementById("votingAction").style.display = "none";
+
+        document.getElementById("gallowsAction").style.display = "block";
+
+    }
+
+    // "Wróć" - z powrotem do wyboru gracza na szubienicę
+    // (osądzenie się nie liczy).
+
+    function backFromGallows() {
+
+        gallowsTargetId = null;
+
+        document.getElementById("gallowsAction").style.display = "none";
+
+        document.getElementById("votingAction").style.display = "block";
+
+    }
+
+    // Wyrok: NIEWINNY - gracz zostaje w grze, wracamy do panelu dnia,
+    // a licznik możliwych głosowań maleje (np. 2/2 -> 1/2).
+
+    function confirmInnocent() {
+
+        gallowsTargetId = null;
+
+        game.votingsLeft = Math.max(0, game.votingsLeft - 1);
+
+        document.getElementById("gallowsAction").style.display = "none";
+
+        document.getElementById("dayActions").style.display = "block";
+
+        updateDayVotingInfo();
+
+    }
+
+    // Wyrok: WINNY - gracz ginie (dźwięk wygłosowania gra jak dotąd).
+
+    function confirmGuilty() {
+
+        const target =
+            players.find(
+                player => player.id === gallowsTargetId
             );
 
+        if (!target) {
 
-        if (!confirmed) {
+            backFromGallows();
+
             return;
+
         }
+
+        gallowsTargetId = null;
+
+        game.votingsLeft = Math.max(0, game.votingsLeft - 1);
 
 
         // =====================================
@@ -787,7 +1378,7 @@
 
 
         document.getElementById(
-            "votingAction"
+            "gallowsAction"
         ).style.display = "none";
 
 
@@ -801,6 +1392,9 @@
         // =====================================
 
         if (target.role === "Błazen") {
+
+            // Dźwięk: zwycięstwo Błazna (także gdy wygrywa z Szarlatanką)
+            playSfx("jesterWinSound");
 
             // NOWOŚĆ: jeśli w grze jest Szarlatanka (żywa lub nie),
             // wygrywa razem z Błaznem.
@@ -858,7 +1452,8 @@
         // NORMALNA ŚMIERĆ
         // =====================================
 
-        alert(
+        // Dźwięk: gracz wygłosowany - gra już w trakcie komunikatu
+        alertWithSfx("votingDeathSound",
 
             "☠️ " +
             target.name +
@@ -874,6 +1469,8 @@
     // =========================================
 
     function cancelVoting() {
+
+        gallowsTargetId = null;
 
         document.getElementById(
             "votingAction"
@@ -1175,6 +1772,23 @@
         }
 
 
+        // Pomocnik Mafii: w jednej grze może być tylko Informator ALBO
+        // Fałszerz (mają wspólny panel nocny).
+
+        if (
+            selectedRoles.includes("Informator")
+            && selectedRoles.includes("Fałszerz")
+        ) {
+
+            alert(
+                "W jednej grze może być tylko jeden pomocnik Mafii: " +
+                "Informator albo Fałszerz. Zostaw jedną z tych ról."
+            );
+
+            return;
+        }
+
+
         // Sprawdzamy imiona i role
 
         for (let i = 0; i < players.length; i++) {
@@ -1444,6 +2058,8 @@
 
     function goBack() {
 
+        stopNightMusic();
+
         showScreen("mainScreen");
 
     }
@@ -1461,6 +2077,9 @@
             "aliveCountDisplay"
         ).textContent = alivePlayers.length;
 
+        // Próg głosów zależy od liczby żywych
+        updateDayVotingInfo();
+
     }
 
     // =========================================
@@ -1470,6 +2089,13 @@
     function showDay() {
 
         game.phase = "day";
+
+        // Nowy dzień = komplet możliwych głosowań
+        game.votingsLeft = MAX_DAY_VOTINGS;
+
+        gallowsTargetId = null;
+
+        stopNightMusic();
 
         document.getElementById(
             "phaseTitle"
@@ -1502,6 +2128,9 @@
         game.phase = "night";
 
         game.night++;
+
+        // NOWOŚĆ: muzyka nocna startuje razem z nocą
+        startNightMusic();
 
         // Czyścimy akcje poprzedniej nocy
         game.currentNight = {
@@ -1539,10 +2168,10 @@
         document.getElementById("szarlatankaAction").style.display = "none";
         document.getElementById("alcoholicAction").style.display = "none";
         document.getElementById("medicAction").style.display = "none";
-        document.getElementById("falszerzAction").style.display = "none";
+        document.getElementById("helperAction").style.display = "none";
         document.getElementById("shamanAction").style.display = "none";
         document.getElementById("wieszczAction").style.display = "none";
-        document.getElementById("informatorAction").style.display = "none";
+        document.getElementById("helperAction").style.display = "none";
         document.getElementById("mafiaAction").style.display = "none";
         document.getElementById("obserwatorAction").style.display = "none";
 
@@ -1561,6 +2190,63 @@
     }
 
     // =========================================
+    // INFORMACJA O BLOKADZIE ALKOHOLIKA
+    // =========================================
+    // NOWOŚĆ: gdy Alkoholik zablokował osobę, jej panel pokazuje
+    // czerwoną informację OD RAZU po otwarciu (Alkoholik działa jako
+    // pierwszy, więc blokada jest już znana) - zanim Mistrz Gry
+    // cokolwiek wybierze. Baner jest tworzony dynamicznie na górze
+    // panelu, więc nie wymaga zmian w HTML.
+
+    function showBlockedNotice(panelId, player) {
+
+        const panel = document.getElementById(panelId);
+
+        if (!panel) return;
+
+        let notice = panel.querySelector(".blocked-notice");
+
+        if (!notice) {
+
+            notice = document.createElement("div");
+
+            notice.className = "blocked-notice";
+
+            const heading = panel.querySelector("h2");
+
+            if (heading && heading.nextSibling) {
+                panel.insertBefore(notice, heading.nextSibling);
+            } else {
+                panel.insertBefore(notice, panel.firstChild);
+            }
+
+        }
+
+        const isBlocked =
+            player
+            && game.currentNight
+            && game.currentNight.alcoholicBlocked === player.id;
+
+        if (isBlocked) {
+
+            notice.textContent =
+                "🍺 " + player.name +
+                " został zablokowany przez Alkoholika - " +
+                "jego akcja tej nocy nie przyniesie skutku.";
+
+            notice.style.display = "block";
+
+        } else {
+
+            notice.textContent = "";
+
+            notice.style.display = "none";
+
+        }
+
+    }
+
+    // =========================================
     // POCZĄTEK NOCY - KOLEJNOŚĆ AKCJI
     // =========================================
     // NOWOŚĆ: przycisk "Rozpocznij noc" wywołuje tę funkcję. W
@@ -1570,24 +2256,16 @@
 
     function startNightSequence() {
 
+        // POPRAWKA: w pierwszej nocy trybu zaawansowanego panel
+        // Szarlatanki pokazuje się ZAWSZE - także gdy jej nie ma w
+        // grze (wtedy napisze, że jej nie ma). Dzięki temu gracze nie
+        // wywnioskują z przebiegu nocy, czy ta rola bierze udział.
+
         if (game.night === 1 && gameMode === "advanced") {
 
-            const szarlatanka = getRoleHolder("Szarlatanka");
+            startSzarlatankaAction();
 
-            if (szarlatanka && szarlatanka.alive) {
-
-                startSzarlatankaAction();
-
-                return;
-            }
-
-            if (szarlatanka && !szarlatanka.alive) {
-
-                logNightEvent(
-                    "🎭 Szarlatanka nie żyje - pominięto pokazanie kart."
-                );
-
-            }
+            return;
 
         }
 
@@ -1621,14 +2299,51 @@
             "szarlatankaAction"
         ).style.display = "block";
 
-        document.getElementById(
-            "szarlatankaInfo"
-        ).textContent =
-            describeRoleHolder("🎭", "Szarlatanka");
+        const info = document.getElementById("szarlatankaInfo");
+
+        const description =
+            document.getElementById("szarlatankaDescription");
 
         const list = document.getElementById("szarlatankaRoles");
 
         list.innerHTML = "";
+
+        const szarlatanka = getRoleHolder("Szarlatanka");
+
+        // --- Szarlatanki nie ma w grze ---
+        if (!szarlatanka) {
+
+            info.textContent = "Szarlatanki nie ma w grze.";
+
+            description.style.display = "none";
+
+            list.style.display = "none";
+
+            return;
+
+        }
+
+        // --- Szarlatanka jest, ale nie żyje ---
+        if (!szarlatanka.alive) {
+
+            info.textContent =
+                describeRoleHolder("🎭", "Szarlatanka") +
+                " - nie pokazuj kart.";
+
+            description.style.display = "none";
+
+            list.style.display = "none";
+
+            return;
+
+        }
+
+        // --- Szarlatanka żyje: pokazujemy role nieobecne w grze ---
+        info.textContent = describeRoleHolder("🎭", "Szarlatanka");
+
+        description.style.display = "block";
+
+        list.style.display = "block";
 
         const missingRoles = getRolesNotInGame();
 
@@ -1660,12 +2375,19 @@
 
     function confirmSzarlatankaAction() {
 
-        const missingRoles = getRolesNotInGame();
+        const szarlatanka = getRoleHolder("Szarlatanka");
 
-        logNightEvent(
-            "🎭 Szarlatanka poznała role nieobecne w grze: " +
-            (missingRoles.length ? missingRoles.join(", ") : "brak") + "."
-        );
+        // Wpis do dziennika tylko, gdy karty faktycznie zostały pokazane
+        if (szarlatanka && szarlatanka.alive) {
+
+            const missingRoles = getRolesNotInGame();
+
+            logNightEvent(
+                "🎭 Szarlatanka poznała role nieobecne w grze: " +
+                (missingRoles.length ? missingRoles.join(", ") : "brak") + "."
+            );
+
+        }
 
         document.getElementById(
             "szarlatankaAction"
@@ -1901,6 +2623,11 @@
 
         generateMedicTargets();
 
+        showBlockedNotice(
+            "medicAction",
+            getRoleHolder("Medyk")
+        );
+
     }
 
     // =========================================
@@ -2063,78 +2790,163 @@
     }
 
     // =========================================
-    // FAŁSZERZ - ROZPOCZĘCIE AKCJI
+    // POMOCNIK MAFII (INFORMATOR LUB FAŁSZERZ) - ROZPOCZĘCIE AKCJI
     // =========================================
-    // NOWOŚĆ: rola Mafii. Działa PO Medyku, PRZED Szamanem. Dostępna
-    // tylko w trybie zaawansowanym.
+    // NOWOŚĆ: Informator i Fałszerz mają wspólny panel "Budzi się
+    // pomocnik Mafii". W jednej grze występuje tylko jedna z tych
+    // ról (pilnuje tego walidacja w startGame), więc panel pokazuje
+    // akcję tej, która jest w grze: Informator sprawdza dokładną rolę,
+    // Fałszerz wrabia wskazaną osobę. Panel pokazuje się ZAWSZE (także
+    // gdy pomocnik nie żyje lub go nie ma) - żeby gracze nie poznali
+    // po przebiegu nocy, czy ta rola bierze udział.
 
-    function startFalszerzAction() {
+    // Żywy pomocnik Mafii (Informator albo Fałszerz) lub null
+    function getHelperPlayer() {
 
-        // Niezależnie od trybu - panel Medyka na pewno trzeba ukryć
+        return (
+            players.find(p => p.role === "Informator" && p.alive)
+            || players.find(p => p.role === "Fałszerz" && p.alive)
+            || null
+        );
 
-        document.getElementById(
-            "informatorAction"
-        ).style.display = "none";
+    }
 
+    // Nazwa roli pomocnika (także gdy nie żyje) lub null, gdy w grze
+    // nie ma ani Informatora, ani Fałszerza
+    function getHelperRoleName() {
 
-        if (gameMode !== "advanced") {
+        const helper = getHelperPlayer();
 
-            startShamanAction();
+        if (helper) return helper.role;
 
-            return;
+        const any =
+            getRoleHolder("Informator") || getRoleHolder("Fałszerz");
+
+        return any ? any.role : null;
+
+    }
+
+    function startHelperAction() {
+
+        document.getElementById("mafiaAction").style.display = "none";
+
+        document.getElementById("helperAction").style.display = "block";
+
+        const helper = getHelperPlayer();
+
+        const roleName = getHelperRoleName();
+
+        const info = document.getElementById("helperInfo");
+
+        const label = document.getElementById("helperModeLabel");
+
+        if (roleName === "Fałszerz") {
+
+            info.textContent = describeRoleHolder("🃏", "Fałszerz");
+
+            label.textContent =
+                "Wybierz osobę, którą Fałszerz wrobi tej nocy " +
+                "(jej frakcja zostanie odwrócona tylko na tę noc).";
+
+        } else if (roleName === "Informator") {
+
+            info.textContent = describeRoleHolder("🕵️", "Informator");
+
+            label.textContent =
+                "Wybierz osobę, której dokładną rolę chcesz poznać.";
+
+        } else {
+
+            info.textContent =
+                "Informatora ani Fałszerza nie ma w tej grze.";
+
+            label.textContent = "";
+
         }
 
+        generateHelperTargets(roleName);
 
-        document.getElementById(
-            "falszerzAction"
-        ).style.display = "block";
-
-
-        document.getElementById(
-            "falszerzInfo"
-        ).textContent =
-            describeRoleHolder("🃏", "Fałszerz");
-
-
-        generateFalszerzTargets();
+        showBlockedNotice("helperAction", helper);
 
     }
 
     // =========================================
-    // FAŁSZERZ - LISTA CELÓW
+    // POMOCNIK MAFII - LISTA CELÓW
     // =========================================
-    // Fałszerz nie może wrobić samego siebie ani tej samej osoby,
-    // którą wrobił poprzedniej nocy.
+    // Informator: nie może wybrać siebie ani kolegów z Mafii.
+    // Fałszerz: nie może wrobić siebie ani osoby wrobionej poprzedniej
+    // nocy (zablokowany Fałszerz nie "zużywa" celu).
 
-    function generateFalszerzTargets() {
+    function generateHelperTargets(roleName) {
 
-        const select =
-            document.getElementById("falszerzTarget");
+        const select = document.getElementById("helperTarget");
 
         select.innerHTML = "";
 
-        const falszerz =
-            players.find(
-                p => p.role === "Fałszerz" && p.alive
-            );
+        const helper = getHelperPlayer();
 
-        const previousTarget =
-            game.previousFalszerzTarget;
+        const previousTarget = game.previousFalszerzTarget;
 
         players.forEach(player => {
 
             if (!player.alive) return;
 
-            if (falszerz && player.id === falszerz.id) return;
+            if (helper && player.id === helper.id) return;
 
-            if (player.id === previousTarget) return;
+            if (roleName === "Fałszerz") {
+
+                if (player.id === previousTarget) return;
+
+            } else if (
+                player.role === "Mafia" || player.role === "Fałszerz"
+            ) {
+
+                return;
+
+            }
 
             const option = document.createElement("option");
+
             option.value = player.id;
+
             option.textContent = player.name;
+
             select.appendChild(option);
 
         });
+
+    }
+
+    // =========================================
+    // POMOCNIK MAFII - ZATWIERDZENIE
+    // =========================================
+
+    function confirmHelperAction() {
+
+        if (!getHelperPlayer()) {
+
+            logNightEvent(
+                "🕵️🃏 Pomocnik Mafii (Informator / Fałszerz) nie żyje " +
+                "lub nie występuje - noc bez jego akcji."
+            );
+
+            document.getElementById("helperAction").style.display = "none";
+
+            startShamanAction();
+
+            return;
+
+        }
+
+        if (getHelperRoleName() === "Fałszerz") {
+
+            confirmFalszerzAction();
+
+        } else {
+
+            confirmInformatorAction();
+
+        }
 
     }
 
@@ -2156,7 +2968,7 @@
             );
 
             document.getElementById(
-                "falszerzAction"
+                "helperAction"
             ).style.display = "none";
 
             startShamanAction();
@@ -2165,7 +2977,7 @@
         }
 
         const select =
-            document.getElementById("falszerzTarget");
+            document.getElementById("helperTarget");
 
         const targetId =
             parseInt(select.value);
@@ -2183,10 +2995,11 @@
         const falszerzBlocked =
             game.currentNight.alcoholicBlocked === falszerz.id;
 
-        // Zapamiętujemy cel do sprawdzenia "nie dwa razy pod rząd"
-        // w KOLEJNEJ nocy - niezależnie od tego, czy akcja się udała.
+        // POPRAWKA: cel zapamiętujemy do sprawdzenia "nie dwa razy pod rząd"
+        // tylko, gdy wrobienie FAKTYCZNIE się odbyło. Wcześniej zablokowany
+        // Fałszerz tracił wybraną osobę (np. Błazna) na kolejną noc.
 
-        game.previousFalszerzTarget = targetId;
+        game.previousFalszerzTarget = falszerzBlocked ? null : targetId;
 
         if (falszerzBlocked) {
 
@@ -2214,7 +3027,7 @@
         }
 
         document.getElementById(
-            "falszerzAction"
+            "helperAction"
         ).style.display = "none";
 
         startShamanAction();
@@ -2231,7 +3044,7 @@
         // bezpośrednio Medyk.
 
         document.getElementById(
-            "falszerzAction"
+            "helperAction"
         ).style.display = "none";
 
 
@@ -2249,6 +3062,11 @@
 
 
         generateShamanTargets();
+
+        showBlockedNotice(
+            "shamanAction",
+            getRoleHolder("Szaman")
+        );
 
     }
 
@@ -2459,6 +3277,11 @@
             describeRoleHolder("🔮", "Wieszcz");
 
         generateWieszczTargets();
+
+        showBlockedNotice(
+            "wieszczAction",
+            getRoleHolder("Wieszcz")
+        );
 
     }
 
@@ -2679,6 +3502,13 @@
 
         generateMafiaTargets();
 
+        const currentKiller =
+            players.find(p => p.role === "Mafia" && p.alive)
+            || players.find(p => p.role === "Informator" && p.alive)
+            || players.find(p => p.role === "Fałszerz" && p.alive);
+
+        showBlockedNotice("mafiaAction", currentKiller);
+
     }
 
     // =========================================
@@ -2748,7 +3578,7 @@
     // powinna była się już zakończyć wcześniej (checkWinConditions),
     // ale zostawiamy zabezpieczenie na wszelki wypadek.
 
-    function confirmMafiaAction() {
+    async function confirmMafiaAction() {
 
         const mafia =
             players.find(
@@ -2781,7 +3611,7 @@
                 "mafiaAction"
             ).style.display = "none";
 
-            startInformatorAction();
+            startHelperAction();
 
             return;
         }
@@ -2844,6 +3674,39 @@
 
             registerVisit(actingKiller.id, target.id);
 
+            // NOWOŚĆ: Medyk działa PRZED Mafią, więc już teraz wiadomo,
+            // czy Błazen faktycznie zginie. Jeśli tak i żyje Szarlatanka,
+            // Mistrz Gry dostaje informację OD RAZU po wyborze celu.
+            if (
+                target.role === "Błazen"
+                && game.currentNight.medic !== target.id
+            ) {
+
+                const szarlatankaNow = players.find(
+                    p => p.role === "Szarlatanka"
+                        && p.alive
+                        && !p.despaired
+                );
+
+                if (szarlatankaNow) {
+
+                    game.currentNight.despairAnnounced = true;
+
+                    await showModalAlert(
+                        "⚠️ SZARLATANKA STRACI BŁAZNA ⚠️\n\n" +
+                        "Cel Mafii to Błazen (" + target.name + ") i nikt " +
+                        "go nie chroni - zginie tej nocy.\n\n" +
+                        "Szarlatanka (" + szarlatankaNow.name + ") zmieni " +
+                        "się w ROZPACZONĄ SZARLATANKĘ. Pod koniec nocy " +
+                        "podmień jej kartę. Jej nowy cel: przeżyć do " +
+                        "końca gry."
+                    );
+
+                }
+
+            }
+
+
             if (mafia) {
 
                 logNightEvent(
@@ -2874,104 +3737,10 @@
         ).style.display = "none";
 
 
-        startInformatorAction();
+        startHelperAction();
 
     }
 
-
-    // =========================================
-    // INFORMATOR - ROZPOCZĘCIE AKCJI
-    // =========================================
-    // POPRAWKA: Informator działa teraz PO Mafii i ZAWSZE sprawdza
-    // dokładną rolę wskazanej osoby - nawet jeśli tej samej nocy
-    // (w panelu Mafii, wcześniej) przejął już zabijanie. Nie traci
-    // umiejętności sprawdzania.
-
-    function startInformatorAction() {
-
-        document.getElementById(
-            "mafiaAction"
-        ).style.display = "none";
-
-
-        document.getElementById(
-            "informatorAction"
-        ).style.display = "block";
-
-
-        document.getElementById(
-            "informatorInfo"
-        ).textContent =
-            describeRoleHolder("🕵️", "Informator");
-
-
-        document.getElementById(
-            "informatorModeLabel"
-        ).textContent =
-            "Wybierz osobę, której dokładną rolę chcesz poznać.";
-
-
-        generateInformatorTargets();
-
-    }
-
-    // =========================================
-    // INFORMATOR - LISTA CELÓW
-    // =========================================
-    // POPRAWKA: Informator nie może wybrać swojego kolegi z Mafii
-    // (oprócz tego, że nadal nie może wybrać samego siebie).
-
-    function generateInformatorTargets() {
-
-        const select =
-            document.getElementById("informatorTarget");
-
-
-        select.innerHTML = "";
-
-
-        const informator =
-            players.find(
-                player => player.role === "Informator" && player.alive
-            );
-
-
-        players.forEach(player => {
-
-            if (!player.alive) {
-                return;
-            }
-
-
-            // Informator nie sprawdza samego siebie
-
-            if (informator && player.id === informator.id) {
-                return;
-            }
-
-
-            // POPRAWKA: Informator nie może wybrać żadnego ze swoich
-            // drużynowych kolegów z Mafii.
-
-            if (player.role === "Mafia" || player.role === "Fałszerz") {
-                return;
-            }
-
-
-            const option =
-                document.createElement("option");
-
-            option.value =
-                player.id;
-
-            option.textContent =
-                player.name;
-
-            select.appendChild(option);
-
-        });
-
-    }
 
     // =========================================
     // INFORMATOR - ZATWIERDZENIE
@@ -2998,17 +3767,17 @@
             );
 
             document.getElementById(
-                "informatorAction"
+                "helperAction"
             ).style.display = "none";
 
-            startFalszerzAction();
+            startShamanAction();
 
             return;
         }
 
 
         const select =
-            document.getElementById("informatorTarget");
+            document.getElementById("helperTarget");
 
         const targetId =
             parseInt(select.value);
@@ -3073,11 +3842,11 @@
 
 
         document.getElementById(
-            "informatorAction"
+            "helperAction"
         ).style.display = "none";
 
 
-        startFalszerzAction();
+        startShamanAction();
 
     }
 
@@ -3097,7 +3866,7 @@
 
             document.getElementById("shamanAction").style.display = "none";
             document.getElementById("wieszczAction").style.display = "none";
-            document.getElementById("informatorAction").style.display = "none";
+            document.getElementById("helperAction").style.display = "none";
 
             endNight();
 
@@ -3107,7 +3876,7 @@
 
         document.getElementById("shamanAction").style.display = "none";
         document.getElementById("wieszczAction").style.display = "none";
-        document.getElementById("informatorAction").style.display = "none";
+        document.getElementById("helperAction").style.display = "none";
 
         document.getElementById(
             "obserwatorAction"
@@ -3119,6 +3888,11 @@
             describeRoleHolder("👁️", "Obserwator");
 
         generateObserwatorTargets();
+
+        showBlockedNotice(
+            "obserwatorAction",
+            getRoleHolder("Obserwator")
+        );
 
     }
 
@@ -3259,10 +4033,23 @@
     // zabójstwa Mafii względem uzdrowienia Medyka, aktualizuje stan
     // graczy, sprawdza warunki zwycięstwa i przechodzi do kolejnego dnia.
 
-    function endNight() {
+    async function endNight() {
 
         const killTargetId = game.currentNight.mafia;
         const saveTargetId = game.currentNight.medic;
+
+        // Wpisy dziennika sprzed tego miejsca to przebieg nocy (akcje
+        // postaci); wpisy dodane niżej to już skutki - pokazujemy je
+        // osobno, jako wynik nocy.
+        const nightStepsCount = game.currentNight.log.length;
+
+        // Wynik nocy do wielkiego nagłówka w podsumowaniu
+        let nightResult = {
+            tone: "neutral",
+            label: "Wynik nocy",
+            main: "Nikt nie zginął",
+            detail: "Ta noc minęła bez ofiar."
+        };
 
         // NOWOŚĆ: jeśli tej nocy Guślarz zostanie zaatakowany po raz
         // PIERWSZY, przeżywa (jednorazowa odporność) - ustawiamy tu
@@ -3283,6 +4070,17 @@
             if (victim) {
 
                 if (killTargetId === saveTargetId) {
+
+                    // Dźwięk: Medyk uratował ofiarę
+                    playSfx("medicSaveSound");
+
+                    nightResult = {
+                        tone: "safe",
+                        label: "Wynik nocy",
+                        main: "Nikt nie zginął",
+                        detail: "🩺 " + victim.name +
+                            " został uratowany przez Medyka."
+                    };
 
                     logNightEvent(
                         "🩺 " + victim.name + " został uratowany przez Medyka!"
@@ -3309,6 +4107,14 @@
                     // NIE umiera, tylko zużywa jednorazową odporność.
 
                     victim.guslarAttacked = true;
+
+                    nightResult = {
+                        tone: "safe",
+                        label: "Wynik nocy",
+                        main: "Nikt nie zginął",
+                        detail: "😱 " + victim.name +
+                            " (Guślarz) został zaatakowany, ale przeżył."
+                    };
 
                     logNightEvent(
                         "😱 " + victim.name +
@@ -3355,6 +4161,16 @@
 
                     });
 
+
+                    // Dźwięk: ktoś zginął tej nocy
+                    playSfx("nightDeathSound");
+
+                    nightResult = {
+                        tone: "death",
+                        label: "☠️ Tej nocy zginął",
+                        main: victim.name,
+                        detail: "Rola: " + getRoleLabel(victim)
+                    };
 
                     logNightEvent(
                         "☠️ Tej nocy zginął: " +
@@ -3459,11 +4275,22 @@
         // ZBIORCZE PODSUMOWANIE NOCY
         // =====================================
 
-        const summary =
-            "🌙 Podsumowanie nocy " + game.night + ":\n\n" +
-            game.currentNight.log.join("\n");
+        // Przebieg nocy = akcje postaci po kolei; dodatkowe skutki
+        // (np. Szarlatanka tracąca Błazna) idą do osobnych ramek.
+        const nightSteps =
+            game.currentNight.log.slice(0, nightStepsCount);
 
-        alert(summary);
+        const nightExtras =
+            game.currentNight.log
+                .slice(nightStepsCount)
+                .filter(line => line.startsWith("🎭💔"));
+
+        await showNightSummary(
+            game.night,
+            nightResult,
+            nightSteps,
+            nightExtras
+        );
 
 
         // =====================================
@@ -3491,7 +4318,8 @@
                     ? "Nikt nie odwiedził Guślarza przez całą rozgrywkę."
                     : uniqueVisitorNames.join("\n");
 
-            alert(
+            // Dźwięk: Guślarz przeżył atak - gra już w trakcie komunikatu
+            await alertWithSfx("guslarSurviveSound",
                 "⚠️ WSTRZYMAJ NOC ⚠️\n\n" +
                 "GUŚLARZ (" + guslarSurvivedThisNight.name + ") ZOSTAŁ ZAATAKOWANY " +
                 "PRZEZ MAFIĘ, ALE PRZEŻYŁ!\n\n" +
@@ -3507,9 +4335,12 @@
         // =====================================
         // SZARLATANKA - UTRATA BŁAZNA
         // =====================================
-        if (szarlatankaDespairedThisNight) {
+        if (
+            szarlatankaDespairedThisNight
+            && !game.currentNight.despairAnnounced
+        ) {
 
-            alert(
+            await showModalAlert(
                 "⚠️ WSTRZYMAJ NOC ⚠️\n\n" +
                 "BŁAZEN NIE ŻYJE - SZARLATANKA (" +
                 szarlatankaDespairedThisNight.name +
@@ -3530,7 +4361,11 @@
 
         game.day++;
 
+        // Dzień nastaje: showDay() wyłącza muzykę nocną, a zaraz po
+        // tym rozbrzmiewa dźwięk początku dnia (pianie koguta).
         showDay();
+
+        playDayStartSound();
 
     }
 
@@ -3578,6 +4413,8 @@
 
         if (aliveEvil.length === 0) {
 
+            playSfx("townWinSound");
+
             showGameOver(
                 "🏆 MIASTO WYGRYWA!",
                 "Cała zła drużyna (Mafia i jej sojusznicy) została wyeliminowana." + despairedNote
@@ -3588,6 +4425,8 @@
 
 
         if (aliveEvil.length >= aliveGood.length) {
+
+            playSfx("mafiaWinSound");
 
             showGameOver(
                 "🔫 MAFIA WYGRYWA!",
@@ -3605,6 +4444,8 @@
 
     function showGameOver(title, message) {
 
+        stopNightMusic();
+
         // Ukrywamy wszystkie elementy rozgrywki
 
         document.getElementById(
@@ -3617,6 +4458,10 @@
 
         document.getElementById(
             "votingAction"
+        ).style.display = "none";
+
+        document.getElementById(
+            "gallowsAction"
         ).style.display = "none";
 
         document.getElementById(
@@ -3655,6 +4500,8 @@
     }
 
     function newGameWithSamePlayers() {
+
+        stopNightMusic();
 
         // Zachowujemy imiona
 
@@ -3724,6 +4571,8 @@
             dayStartedAt: null,
 
             dayTimerInterval: null,
+
+            votingsLeft: 2,
 
             previousAlcoholicTarget: null,
 
