@@ -800,7 +800,7 @@
         <!-- Wersja: html wpisana ręcznie, js dopisuje script.js.
              Przy zmianach zwiększ data-html-version oraz APP_VERSION
              w script.js. -->
-        <div id="versionInfo" data-html-version="1.7.0">html v1.7.0</div>
+        <div id="versionInfo" data-html-version="1.8.0">html v1.8.0</div>
 
         <!-- NOWOŚĆ: przełącznik trybu podstawowy / zaawansowany -->
 
@@ -911,28 +911,32 @@
         <ol>
             <li>Mistrz Gry decyduje, kiedy rozpocząć głosowanie - w momencie, gdy rozmowa graczy dobiega końca.</li>
             <li>Na odliczanie <strong>3… 2… 1…</strong> każdy gracz wskazuje osobę, na którą głosuje, albo wstrzymuje się i nikogo nie wybiera.</li>
-            <li>Aby gracz stanął na szubienicy, musi mieć przewagę głosów graczy:
+            <li>Aby gracz stanął na szubienicy, musi zdobyć odpowiednią liczbę głosów graczy:
                 <table class="rules-table">
                     <thead>
                         <tr><th>Żywych</th><th>Potrzeba głosów</th></tr>
                     </thead>
                     <tbody>
-                    <tr><td>15</td><td>8</td></tr>
-                    <tr><td>14</td><td>8</td></tr>
-                    <tr><td>13</td><td>7</td></tr>
-                    <tr><td>12</td><td>7</td></tr>
-                    <tr><td>11</td><td>6</td></tr>
-                    <tr><td>10</td><td>6</td></tr>
-                    <tr><td>9</td><td>5</td></tr>
-                    <tr><td>8</td><td>5</td></tr>
-                    <tr><td>7</td><td>4</td></tr>
-                    <tr><td>6</td><td>4</td></tr>
-                    <tr><td>5</td><td>3</td></tr>
-                    <tr><td>4</td><td>3</td></tr>
-                    <tr><td>3</td><td>2</td></tr>
-                    <tr><td>2</td><td>2</td></tr>
+                    <tr><td>15</td><td>7</td></tr>
+                    <tr><td>14</td><td>6</td></tr>
+                    <tr><td>13</td><td>6</td></tr>
+                    <tr><td>12</td><td>5</td></tr>
+                    <tr><td>11</td><td>5</td></tr>
+                    <tr><td>10</td><td>4</td></tr>
+                    <tr><td>9</td><td>4</td></tr>
+                    <tr><td>8</td><td>3</td></tr>
+                    <tr><td>7</td><td>3</td></tr>
+                    <tr><td>6</td><td>2</td></tr>
+                    <tr><td>5</td><td>2</td></tr>
+                    <tr><td>4</td><td>2</td></tr>
+                    <tr><td>3</td><td>1</td></tr>
+                    <tr><td>2</td><td>1</td></tr>
                     </tbody>
                 </table>
+                <div class="rules-note">
+                    <strong>Remis:</strong> jeśli co najmniej dwóch graczy zdobyło wymaganą liczbę głosów
+                    po równo, głosujemy jeszcze raz - tym razem wyłącznie na remisowych kandydatów.
+                </div>
             </li>
             <li>Gracz na szubienicy ma chwilę, aby wytłumaczyć się, dlaczego nie powinien zostać powieszony.</li>
             <li>Wszyscy gracze głosują kciukiem:
