@@ -236,6 +236,18 @@
             margin-top: -15px;
         }
 
+        /* NOWOŚĆ: informacja o składzie Mafii i turach nocnych */
+        .team-note {
+            background: #1d1d1d;
+            border-left: 3px solid #8b0000;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin: 12px 0 18px;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #ccc;
+        }
+
         /* NOWOŚĆ: znaczek przy graczu, którego rola została ujawniona
            publicznie (np. Rozjemca po użyciu umiejętności w dzień) */
         .revealed-badge {
@@ -800,7 +812,7 @@
         <!-- Wersja: html wpisana ręcznie, js dopisuje script.js.
              Przy zmianach zwiększ data-html-version oraz APP_VERSION
              w script.js. -->
-        <div id="versionInfo" data-html-version="1.8.0">html v1.8.0</div>
+        <div id="versionInfo" data-html-version="1.9.0">html v1.9.0</div>
 
         <!-- NOWOŚĆ: przełącznik trybu podstawowy / zaawansowany -->
 
@@ -971,8 +983,21 @@
         <p>Role neutralne nie należą do żadnej drużyny, ale liczą się jako gracze przy warunku zwycięstwa Mafii (Mafia wygrywa, gdy jest jej co najmniej tyle, ile wszystkich pozostałych żywych graczy).</p>
 
         <div class="rules-note">
-            Kolejność nocy: Szarlatanka (tylko pierwsza noc) → Alkoholik → Medyk → Mafia → pomocnik Mafii (Informator albo Fałszerz) → Szaman → Wieszcz → Obserwator.
+            Kolejność nocy: Szarlatanka (tylko pierwsza noc) → Alkoholik → Medyk → Mafia → Informator → Fałszerz → Szaman → Wieszcz → Obserwator.<br>
+            Do 9 graczy Informator i Fałszerz mają wspólną turę (w grze jest tylko jeden z nich), od 10 graczy każdy ma osobną turę.
         </div>
+
+        <h3>Skład Mafii a liczba graczy</h3>
+
+        <table class="rules-table">
+            <thead>
+                <tr><th>Liczba graczy</th><th>Osób z Mafii</th><th>Skład</th><th>Tura nocna</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>do 9</td><td>2</td><td>Mafia + Informator <em>albo</em> Fałszerz (nigdy obaj naraz)</td><td>wspólna tura Informatora / Fałszerza</td></tr>
+                <tr><td>od 10</td><td>3</td><td>Mafia + Informator + Fałszerz</td><td>osobna tura Informatora i osobna Fałszerza</td></tr>
+            </tbody>
+        </table>
 
             <div class="role-card">
                 <div class="role-card-image" data-card="mafia">
@@ -984,7 +1009,7 @@
                     <h3>Mafia</h3>
                     <span class="role-faction faction-evil">Zła (Mafia)</span>
                     <p>Co noc wybiera jedną osobę, która zostanie zabita. Nie może wybrać swoich sojuszników.</p>
-                    <p>Jeśli Mafia nie żyje, decyzję o zabójstwie podejmuje jej pomocnik - Informator albo Fałszerz (w jednej grze może być tylko jeden z nich).</p>
+                    <p>Jeśli Mafia nie żyje, decyzję o zabójstwie podejmuje jej pomocnik - Informator, a gdy i on nie żyje - Fałszerz. Do 9 graczy Mafię tworzą 2 osoby (Mafia + Informator albo Fałszerz), od 10 graczy - 3 osoby (Mafia + Informator + Fałszerz).</p>
                     <p>Może zostać zablokowana przez Alkoholika - wtedy tej nocy nikogo nie zabije.</p>
                     <p><em>Tryb: Podstawowy i zaawansowany</em></p>
                 </div>
@@ -1001,6 +1026,7 @@
                     <span class="role-faction faction-evil">Zła (Mafia)</span>
                     <p>Co noc sprawdza dokładną rolę wybranej osoby. Nie może wybrać Mafii, Fałszerza ani siebie.</p>
                     <p>Gdy Mafia nie żyje, przejmuje zabijanie. Zablokowany przez Alkoholika nie dowiaduje się niczego.</p>
+                    <p>Do 9 graczy ma wspólną turę z Fałszerzem (w grze jest tylko jeden z nich). Od 10 graczy ma osobną turę.</p>
                     <p><em>Tryb: Podstawowy i zaawansowany</em></p>
                 </div>
             </div>
@@ -1017,6 +1043,7 @@
                     <p>Co noc wrabia jedną osobę: jej frakcja jest na tę noc odwrócona dla sprawdzeń Szamana i Wieszcza (dobra ↔ zła, neutralna jest widziana jako zła).</p>
                     <p>Nie może wrobić siebie ani osoby, którą skutecznie wrobił poprzedniej nocy.</p>
                     <p>Gdy Mafia i Informator nie żyją, przejmuje zabijanie.</p>
+                    <p>Do 9 graczy ma wspólną turę z Informatorem (w grze jest tylko jeden z nich). Od 10 graczy ma osobną turę.</p>
                     <p><em>Tryb: Tylko zaawansowany</em></p>
                 </div>
             </div>
@@ -1198,7 +1225,12 @@
             min="4"
             max="8"
             value="8"
+            oninput="updatePlayerCountNote()"
         >
+
+        <!-- Informacja o składzie Mafii i turach nocnych (tylko napis,
+             bez blokad) - wypełnia JavaScript: updatePlayerCountNote -->
+        <div id="playerCountNote" class="team-note"></div>
 
         <button onclick="createPlayers()">
             Dalej
@@ -1222,6 +1254,10 @@
         <div class="game-info">
             Wpisz imiona i przypisz role.
         </div>
+
+        <!-- Skład Mafii i rodzaj tury Informatora/Fałszerza
+             (wypełnia JavaScript: updateTeamSetupNote) -->
+        <div id="teamSetupNote" class="team-note"></div>
 
         <div id="playersContainer" class="players-container">
             <!-- Gracze zostaną wygenerowani przez JavaScript -->
@@ -1553,8 +1589,9 @@
             </div>
 
             <!-- POMOCNIK MAFII: INFORMATOR LUB FAŁSZERZ -->
-            <!-- NOWOŚĆ: wspólny panel. W jednej grze może być tylko
-                 jedna z tych ról: Informator sprawdza dokładną rolę
+            <!-- NOWOŚĆ: panel używany we wspólnej turze (do 9 graczy) ORAZ
+                 w osobnych turach (od 10 graczy - najpierw Informator,
+                 potem Fałszerz). Do 9 graczy zalecana jest tylko jedna z ról: Informator sprawdza dokładną rolę
                  wskazanej osoby, Fałszerz wrabia wskazaną osobę (jej
                  frakcja jest odwrócona tylko tej nocy - wpływa to na
                  wyniki Szamana i Wieszcza; nie może wrobić tej samej
@@ -1563,7 +1600,9 @@
 
             <div id="helperAction" style="display: none;">
 
-                <h2>🕵️🃏 Budzi się pomocnik Mafii: Informator lub Fałszerz</h2>
+                <h2 id="helperTitle">🕵️🃏 Budzi się pomocnik Mafii: Informator lub Fałszerz</h2>
+
+                <div id="helperTurnNote" class="team-note"></div>
 
                 <div id="helperInfo" class="game-info">
                 </div>
