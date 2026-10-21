@@ -7,7 +7,7 @@
     // jeśli obie się różnią (lub brakuje którejś), to przeglądarka
     // albo git nie podmienił któregoś z plików.
 
-    const APP_VERSION = "1.8.0";
+    const APP_VERSION = "1.9.0";
 
     // =========================================
     // DOSTĘPNE ROLE
@@ -93,6 +93,92 @@
         }
 
         return BASIC_ROLES;
+
+    }
+
+
+    // =========================================
+    // SKŁAD MAFII ZALEŻNY OD LICZBY GRACZY
+    // =========================================
+    // NOWOŚĆ: do 9 graczy Mafię tworzą 2 osoby (Mafia + Informator
+    // ALBO Fałszerz - zalecane nigdy obaj naraz) i mają one WSPÓLNĄ
+    // turę nocną. Od 10 graczy Mafię tworzą 3 osoby (Mafia +
+    // Informator + Fałszerz), a Informator i Fałszerz mają OSOBNE tury.
+    // To tylko wskazówka dla Mistrza Gry - nic nie jest blokowane.
+
+    const SEPARATE_HELPER_TURNS_FROM = 10;
+
+    // Ile osób powinno należeć do Mafii przy danej liczbie graczy
+    function getMafiaTeamSize(playerCount) {
+
+        return playerCount >= SEPARATE_HELPER_TURNS_FROM ? 3 : 2;
+
+    }
+
+    // Czy Informator i Fałszerz mają osobne tury w nocy.
+    // Zasada: od 10 graczy. Dodatkowo, gdy Mistrz Gry mimo ostrzeżenia
+    // przypisze obie role w mniejszej grze, też dostają osobne tury -
+    // inaczej akcja jednej z nich po cichu by przepadła.
+    function usesSeparateHelperTurns() {
+
+        if (players.length >= SEPARATE_HELPER_TURNS_FROM) return true;
+
+        return players.some(p => p.role === "Informator")
+            && players.some(p => p.role === "Fałszerz");
+
+    }
+
+    // Tekst z informacją o składzie Mafii i turach nocnych
+    function getMafiaSetupText(playerCount) {
+
+        if (playerCount >= SEPARATE_HELPER_TURNS_FROM) {
+
+            return "👥 Od 10 graczy w grze są 3 osoby z Mafii " +
+                "(Mafia + Informator + Fałszerz). " +
+                "Informator i Fałszerz mają OSOBNE tury w nocy.";
+
+        }
+
+        return "👥 Do 9 graczy w grze są 2 osoby z Mafii " +
+            "(Mafia + Informator ALBO Fałszerz - nigdy obaj naraz). " +
+            "Informator i Fałszerz mają WSPÓLNĄ turę w nocy.";
+
+    }
+
+    // Informacja pod polem liczby graczy (ekran "Nowa gra")
+    function updatePlayerCountNote() {
+
+        const note = document.getElementById("playerCountNote");
+
+        if (!note) return;
+
+        const count =
+            parseInt(document.getElementById("playerCount").value);
+
+        note.textContent = Number.isNaN(count)
+            ? ""
+            : getMafiaSetupText(count);
+
+    }
+
+    // Informacja nad listą graczy (ekran wyboru imion i ról) -
+    // dodatkowo pokazuje, ilu członków Mafii jest już przypisanych
+    function updateTeamSetupNote() {
+
+        const note = document.getElementById("teamSetupNote");
+
+        if (!note) return;
+
+        const count = players.length;
+
+        const assigned = players.filter(
+            p => EVIL_ROLES.includes(p.role)
+        ).length;
+
+        note.textContent =
+            getMafiaSetupText(count) +
+            " Przypisano z Mafii: " + assigned +
+            " / " + getMafiaTeamSize(count) + ".";
 
     }
 
@@ -1521,6 +1607,8 @@
         ).max = getActiveRoles().length;
 
 
+        updatePlayerCountNote();
+
         showScreen("newGameScreen");
 
     }
@@ -1740,6 +1828,8 @@
 
         container.scrollTop = savedScroll;
 
+        updateTeamSetupNote();
+
     }
 
 
@@ -1782,21 +1872,9 @@
         }
 
 
-        // Pomocnik Mafii: w jednej grze może być tylko Informator ALBO
-        // Fałszerz (mają wspólny panel nocny).
-
-        if (
-            selectedRoles.includes("Informator")
-            && selectedRoles.includes("Fałszerz")
-        ) {
-
-            alert(
-                "W jednej grze może być tylko jeden pomocnik Mafii: " +
-                "Informator albo Fałszerz. Zostaw jedną z tych ról."
-            );
-
-            return;
-        }
+        // Informator i Fałszerz: bez blokady - Mistrz Gry dostaje tylko
+        // wskazówkę (updateTeamSetupNote). Do 9 graczy zalecany jest jeden
+        // z nich (wspólna tura), od 10 graczy mogą być obaj (osobne tury).
 
 
         // Sprawdzamy imiona i role
@@ -2138,6 +2216,8 @@
         game.phase = "night";
 
         game.night++;
+
+        helperTurnRole = null;
 
         // NOWOŚĆ: muzyka nocna startuje razem z nocą
         startNightMusic();
@@ -2810,8 +2890,21 @@
     // gdy pomocnik nie żyje lub go nie ma) - żeby gracze nie poznali
     // po przebiegu nocy, czy ta rola bierze udział.
 
+    // NOWOŚĆ: która z osobnych tur pomocników trwa teraz.
+    // "Informator" / "Fałszerz" - osobne tury (od 10 graczy),
+    // null - wspólna tura (do 9 graczy).
+    let helperTurnRole = null;
+
     // Żywy pomocnik Mafii (Informator albo Fałszerz) lub null
     function getHelperPlayer() {
+
+        if (helperTurnRole) {
+
+            return players.find(
+                p => p.role === helperTurnRole && p.alive
+            ) || null;
+
+        }
 
         return (
             players.find(p => p.role === "Informator" && p.alive)
@@ -2825,6 +2918,8 @@
     // nie ma ani Informatora, ani Fałszerza
     function getHelperRoleName() {
 
+        if (helperTurnRole) return helperTurnRole;
+
         const helper = getHelperPlayer();
 
         if (helper) return helper.role;
@@ -2836,34 +2931,70 @@
 
     }
 
-    function startHelperAction() {
+    function startHelperAction(forcedRole) {
 
         document.getElementById("mafiaAction").style.display = "none";
 
         document.getElementById("helperAction").style.display = "block";
 
+        const separate = usesSeparateHelperTurns();
+
+        // Osobne tury: najpierw Informator, potem Fałszerz.
+        // Wspólna tura: jeden panel dla tego pomocnika, który jest w grze.
+        helperTurnRole = separate ? (forcedRole || "Informator") : null;
+
         const helper = getHelperPlayer();
 
         const roleName = getHelperRoleName();
+
+        const title = document.getElementById("helperTitle");
+
+        const turnNote = document.getElementById("helperTurnNote");
 
         const info = document.getElementById("helperInfo");
 
         const label = document.getElementById("helperModeLabel");
 
+        if (separate) {
+
+            title.textContent = roleName === "Fałszerz"
+                ? "🃏 Budzi się Fałszerz"
+                : "🕵️ Budzi się Informator";
+
+            turnNote.textContent =
+                "Informator i Fałszerz mają osobne tury " +
+                "(od 10 graczy w grze są 3 osoby z Mafii). " +
+                "Tura " + (roleName === "Fałszerz" ? "2" : "1") + " z 2.";
+
+        } else {
+
+            title.textContent =
+                "🕵️🃏 Budzi się pomocnik Mafii: Informator lub Fałszerz";
+
+            turnNote.textContent =
+                "Informator i Fałszerz mają wspólną turę " +
+                "(do 9 graczy w grze są 2 osoby z Mafii).";
+
+        }
+
         if (roleName === "Fałszerz") {
 
             info.textContent = describeRoleHolder("🃏", "Fałszerz");
 
-            label.textContent =
-                "Wybierz osobę, którą Fałszerz wrobi tej nocy " +
-                "(jej frakcja zostanie odwrócona tylko na tę noc).";
+            label.textContent = helper
+                ? "Wybierz osobę, którą Fałszerz wrobi tej nocy " +
+                  "(jej frakcja zostanie odwrócona tylko na tę noc)."
+                : "Fałszerz nie żyje lub nie występuje - kliknij, " +
+                  "aby przejść dalej.";
 
         } else if (roleName === "Informator") {
 
             info.textContent = describeRoleHolder("🕵️", "Informator");
 
-            label.textContent =
-                "Wybierz osobę, której dokładną rolę chcesz poznać.";
+            label.textContent = helper
+                ? "Wybierz osobę, której dokładną rolę chcesz poznać."
+                : "Informator nie żyje lub nie występuje - kliknij, " +
+                  "aby przejść dalej.";
 
         } else {
 
@@ -2877,6 +3008,26 @@
         generateHelperTargets(roleName);
 
         showBlockedNotice("helperAction", helper);
+
+    }
+
+    // Kończy turę pomocnika: przy osobnych turach po Informatorze
+    // budzi się Fałszerz, w pozostałych przypadkach - Szaman.
+    function finishHelperTurn() {
+
+        document.getElementById("helperAction").style.display = "none";
+
+        if (usesSeparateHelperTurns() && helperTurnRole === "Informator") {
+
+            startHelperAction("Fałszerz");
+
+            return;
+
+        }
+
+        helperTurnRole = null;
+
+        startShamanAction();
 
     }
 
@@ -2942,7 +3093,7 @@
 
             document.getElementById("helperAction").style.display = "none";
 
-            startShamanAction();
+            finishHelperTurn();
 
             return;
 
@@ -2981,7 +3132,7 @@
                 "helperAction"
             ).style.display = "none";
 
-            startShamanAction();
+            finishHelperTurn();
 
             return;
         }
@@ -3040,7 +3191,7 @@
             "helperAction"
         ).style.display = "none";
 
-        startShamanAction();
+        finishHelperTurn();
 
     }
 
@@ -3780,7 +3931,7 @@
                 "helperAction"
             ).style.display = "none";
 
-            startShamanAction();
+            finishHelperTurn();
 
             return;
         }
@@ -3856,7 +4007,7 @@
         ).style.display = "none";
 
 
-        startShamanAction();
+        finishHelperTurn();
 
     }
 
